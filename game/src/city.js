@@ -229,7 +229,7 @@ export function buildCity(scene, random) {
   const zebraMat = new THREE.MeshLambertMaterial({ map: zebraTexture(), transparent: true });
   for (const r1 of roads) {
     for (const r2 of roads) {
-      for (const off of [-11, 11]) {
+      for (const off of [-14, 14]) {
         const za = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
         za.rotation.x = -Math.PI / 2;
         za.position.set(r1 + off, 0.04, r2);
