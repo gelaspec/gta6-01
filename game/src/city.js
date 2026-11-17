@@ -8,7 +8,9 @@ import * as THREE from 'three';
 import { CITY, PALETTE } from './config.js';
 import { chance, int, pick, range } from './random.js';
 
-function facadeTexture(random, baseColor, floors, cols) {
+const SHOP_WORDS = ['CAFE', 'TACOS', 'SURF', 'PIZZA', 'HOTEL', 'MARKET', 'BAR', 'DELI', 'BIKES', 'FLOWERS'];
+
+function facadeTexture(random, baseColor, floors, cols, shop) {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 256;
@@ -17,20 +19,65 @@ function facadeTexture(random, baseColor, floors, cols) {
   ctx.fillRect(0, 0, 128, 256);
   // Slight vertical shading so towers read at a distance.
   const shade = ctx.createLinearGradient(0, 0, 0, 256);
-  shade.addColorStop(0, 'rgba(255,255,255,0.16)');
-  shade.addColorStop(1, 'rgba(0,0,0,0.18)');
+  shade.addColorStop(0, 'rgba(255,255,255,0.22)');
+  shade.addColorStop(0.7, 'rgba(255,255,255,0.02)');
+  shade.addColorStop(1, 'rgba(0,0,0,0.12)');
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, 128, 256);
-  const lit = 'rgba(255,236,170,0.95)';
-  const dark = 'rgba(30,48,66,0.85)';
+  // Floor separator lines and a faint per-floor tint so the facade is not a
+  // flat slab.
+  const fh = (256 - 34) / floors;
+  for (let f = 0; f < floors; f += 1) {
+    const y0 = 10 + f * fh;
+    ctx.fillStyle = f % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+    ctx.fillRect(0, y0, 128, fh);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(0, y0 + fh - 1, 128, 1);
+  }
+  const litColors = ['rgba(255,226,150,0.95)', 'rgba(255,200,120,0.95)', 'rgba(190,225,255,0.9)'];
+  const darkColors = ['rgba(74,102,128,0.9)', 'rgba(60,84,104,0.9)', 'rgba(88,110,128,0.85)'];
+  const winW = (128 - 20) / cols - 6;
+  const winH = Math.max(3, fh - 9);
   for (let f = 0; f < floors; f += 1) {
     for (let c = 0; c < cols; c += 1) {
       const x = 10 + c * ((128 - 20) / cols);
-      const y = 12 + f * ((256 - 24) / floors);
-      ctx.fillStyle = chance(random, 0.35) ? lit : dark;
-      ctx.fillRect(x, y, (128 - 20) / cols - 6, (256 - 24) / floors - 8);
+      const y = 12 + f * fh;
+      // Window frame, then glass — half the windows lit warm, the rest a
+      // light blue-grey so shadow sides never read as black holes.
+      ctx.fillStyle = 'rgba(238,232,218,0.92)';
+      ctx.fillRect(x - 1, y - 1, winW + 2, winH + 2);
+      ctx.fillStyle = chance(random, 0.5) ? pick(random, litColors) : pick(random, darkColors);
+      ctx.fillRect(x, y, winW, winH);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(x - 1, y + winH + 1, winW + 2, 2);
     }
   }
+  // Ground floor: a shop band with a striped awning and a lit sign word for
+  // low buildings, a glass lobby with a door for towers.
+  const gy = 256 - 30;
+  if (shop) {
+    ctx.fillStyle = 'rgba(30,32,38,0.92)';
+    ctx.fillRect(0, gy, 128, 30);
+    const ac = pick(random, ['#e84a5f', '#2e8f86', '#e87a2e', '#c23b6e']);
+    for (let s = 0; s < 8; s += 1) {
+      ctx.fillStyle = s % 2 ? '#f2ede2' : ac;
+      ctx.fillRect(s * 16, gy, 16, 7);
+    }
+    ctx.fillStyle = pick(random, ['#ffd94c', '#7df0d8', '#ffffff', '#ff9d5c']);
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(pick(random, SHOP_WORDS), 64, gy + 24);
+  } else {
+    ctx.fillStyle = 'rgba(40,60,80,0.95)';
+    ctx.fillRect(0, gy, 128, 30);
+    ctx.fillStyle = 'rgba(255,226,150,0.85)';
+    ctx.fillRect(54, gy + 8, 20, 22);
+    ctx.fillStyle = 'rgba(20,30,40,0.9)';
+    ctx.fillRect(58, gy + 8, 4, 22);
+  }
+  // Parapet band at the very top.
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(0, 0, 128, 6);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -103,9 +150,9 @@ export function buildCity(scene, random) {
 
   // --- Buildings: towers downtown, low shops and houses further out. ---
   const facadeCache = new Map();
-  function facade(base, floors, cols) {
-    const key = `${base}|${floors}|${cols}`;
-    if (!facadeCache.has(key)) facadeCache.set(key, facadeTexture(random, base, floors, cols));
+  function facade(base, floors, cols, shop) {
+    const key = `${base}|${floors}|${cols}|${shop ? 1 : 0}`;
+    if (!facadeCache.has(key)) facadeCache.set(key, facadeTexture(random, base, floors, cols, shop));
     return facadeCache.get(key);
   }
   const roofMat = new THREE.MeshLambertMaterial({ color: PALETTE.roof });
@@ -148,7 +195,7 @@ export function buildCity(scene, random) {
       const base = pick(random, PALETTE.building);
       const floors = Math.max(2, Math.floor(h / 4));
       const cols = Math.max(2, Math.floor(w / 5));
-      const mat = new THREE.MeshLambertMaterial({ map: facade(base, floors, cols) });
+      const mat = new THREE.MeshLambertMaterial({ map: facade(base, floors, cols, !tall) });
       const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
       tower.position.set(x, h / 2, z);
       tower.castShadow = true;
@@ -157,6 +204,56 @@ export function buildCity(scene, random) {
       const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 1, 1.2, d + 1), roofMat);
       roof.position.set(x, h + 0.6, z);
       group.add(roof);
+      const roofY = h + 1.2;
+      if (tall) {
+        // Rooftop furniture: AC unit, water tank, antenna with a red tip.
+        if (chance(random, 0.7)) {
+          group.add(box(range(random, 2, 3.5), 1, range(random, 2, 3), 0x8a8f96, x + range(random, -w / 4, w / 4), roofY + 0.5, z + range(random, -d / 4, d / 4)));
+        }
+        if (chance(random, 0.5)) {
+          const tank = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.3, 1.3, 2.6, 10),
+            new THREE.MeshLambertMaterial({ color: 0x5a4a3a }),
+          );
+          tank.position.set(x + range(random, -w / 4, w / 4), roofY + 1.3, z + range(random, -d / 4, d / 4));
+          tank.castShadow = true;
+          group.add(tank);
+        }
+        if (chance(random, 0.6)) {
+          const ax = x + range(random, -w / 4, w / 4);
+          const az = z + range(random, -d / 4, d / 4);
+          const ant = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.12, 7, 6),
+            new THREE.MeshLambertMaterial({ color: 0x2a2e33 }),
+          );
+          ant.position.set(ax, roofY + 3.5, az);
+          group.add(ant);
+          const tip = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22, 6, 6),
+            new THREE.MeshLambertMaterial({ color: 0xff3b30, emissive: 0xff3b30, emissiveIntensity: 0.9 }),
+          );
+          tip.position.set(ax, roofY + 7, az);
+          group.add(tip);
+        }
+      } else {
+        // Balconies on the front/back faces and a neon shop sign.
+        const balc = int(random, 1, 3);
+        for (let bI = 0; bI < balc; bI += 1) {
+          const face = chance(random, 0.5) ? 1 : -1;
+          const by = range(random, 4, Math.max(5, h - 2));
+          const bx = x + range(random, -w / 2 + 3, w / 2 - 3);
+          group.add(box(3.4, 0.25, 1.3, 0x6a5a4a, bx, by, z + face * (d / 2 + 0.55)));
+          group.add(box(3.4, 0.9, 0.12, 0x3a3f46, bx, by + 0.55, z + face * (d / 2 + 1.15)));
+        }
+        if (chance(random, 0.75)) {
+          const neon = pick(random, PALETTE.neon);
+          const signMat = new THREE.MeshLambertMaterial({ color: neon, emissive: neon, emissiveIntensity: 1.1 });
+          const face = chance(random, 0.5) ? 1 : -1;
+          const sign = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.2, 0.35), signMat);
+          sign.position.set(x + range(random, -w / 4, w / 4), 4.6, z + face * (d / 2 + 0.25));
+          group.add(sign);
+        }
+      }
       colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
     }
   }
