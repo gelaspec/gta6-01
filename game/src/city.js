@@ -94,15 +94,106 @@ function box(w, h, d, color, x, y, z, material) {
   return mesh;
 }
 
+// Deterministic canvas textures (fixed LCG seed — the same seed, same city).
+function lcg(seed) {
+  let s = seed | 0;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+
+function speckleTexture(base, speck, count, seed) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 128, 128);
+  const rnd = lcg(seed);
+  for (let i = 0; i < count; i += 1) {
+    ctx.fillStyle = speck;
+    ctx.globalAlpha = 0.1 + rnd() * 0.2;
+    ctx.beginPath();
+    ctx.arc(rnd() * 128, rnd() * 128, 1 + rnd() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function tileTexture(base, line) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 4; i += 1) {
+    ctx.beginPath(); ctx.moveTo(i * 32, 0); ctx.lineTo(i * 32, 128); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * 32); ctx.lineTo(128, i * 32); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function waveTexture(base) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+  const rnd = lcg(777);
+  for (let i = 0; i < 26; i += 1) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 1 + rnd() * 2;
+    const y = rnd() * 256;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(80, y + rnd() * 8 - 4, 170, y + rnd() * 8 - 4, 256, y);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function zebraTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 64, 128);
+  ctx.fillStyle = 'rgba(232,228,210,0.92)';
+  for (let i = 0; i < 6; i += 1) ctx.fillRect(2, 6 + i * 21, 60, 12);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function buildCity(scene, random) {
   const colliders = [];
   const group = new THREE.Group();
   const { roads, roadWidth, block, half } = CITY;
 
   // --- Ground: grass base, then road ribbons, sidewalks and the beach. ---
+  const grassTex = speckleTexture('#7d9b5e', '#6a8a4e', 260, 4242);
+  grassTex.repeat.set(40, 40);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1600, 1600),
-    new THREE.MeshLambertMaterial({ color: PALETTE.grass }),
+    new THREE.MeshLambertMaterial({ map: grassTex }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -132,8 +223,26 @@ export function buildCity(scene, random) {
     }
   }
 
+  // Zebra crossings at every intersection, one across each road.
+  const zebraMat = new THREE.MeshLambertMaterial({ map: zebraTexture(), transparent: true });
+  for (const r1 of roads) {
+    for (const r2 of roads) {
+      const za = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
+      za.rotation.x = -Math.PI / 2;
+      za.position.set(r1, 0.04, r2);
+      group.add(za);
+      const zb = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
+      zb.rotation.x = -Math.PI / 2;
+      zb.rotation.z = Math.PI / 2;
+      zb.position.set(r1, 0.045, r2);
+      group.add(zb);
+    }
+  }
+
   // Sidewalk slabs around every block.
-  const walkMat = new THREE.MeshLambertMaterial({ color: PALETTE.sidewalk });
+  const walkTex = tileTexture('#b9b2a2', 'rgba(0,0,0,0.14)');
+  walkTex.repeat.set(6, 6);
+  const walkMat = new THREE.MeshLambertMaterial({ map: walkTex });
   const blocks = [];
   for (let ix = 0; ix < roads.length - 1; ix += 1) {
     for (let iz = 0; iz < roads.length - 1; iz += 1) {
@@ -279,10 +388,94 @@ export function buildCity(scene, random) {
     }
   }
 
+  // --- Street furniture: hydrants, benches, signs and bushes so the
+  // sidewalks read as lived-in, not empty slabs. ---
+  const hydrantMat = new THREE.MeshLambertMaterial({ color: PALETTE.hydrant });
+  for (const r of roads) {
+    for (let t = -half + 60; t < half; t += 160) {
+      if (chance(random, 0.5)) {
+        const hx = r + roadWidth / 2 + 2.5;
+        const hz = t;
+        const hyd = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.9, 8), hydrantMat);
+        hyd.position.set(hx, 0.45, hz);
+        group.add(hyd);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 6), hydrantMat);
+        cap.position.set(hx, 0.95, hz);
+        cap.scale.y = 0.7;
+        group.add(cap);
+      }
+    }
+  }
+  const benchMat = new THREE.MeshLambertMaterial({ color: PALETTE.benchWood });
+  for (let i = 0; i < 24; i += 1) {
+    const r = pick(random, roads);
+    const t = range(random, -half + 30, half - 30);
+    const alongRoad = chance(random, 0.5);
+    const bx = alongRoad ? r + roadWidth / 2 + 3.5 : t;
+    const bz = alongRoad ? t : r + roadWidth / 2 + 3.5;
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 0.65), benchMat);
+    seat.position.set(bx, 0.5, bz);
+    seat.rotation.y = alongRoad ? 0 : Math.PI / 2;
+    group.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.7, 0.12), benchMat);
+    back.position.set(bx + (alongRoad ? 0 : 0.3), 0.85, bz + (alongRoad ? -0.3 : 0));
+    back.rotation.y = alongRoad ? 0 : Math.PI / 2;
+    group.add(back);
+  }
+  const signPoleMat = new THREE.MeshLambertMaterial({ color: 0x3a3f46 });
+  const signFaceMat = new THREE.MeshLambertMaterial({ color: PALETTE.signGreen, side: THREE.DoubleSide });
+  for (const r of roads) {
+    for (let t = -half + 80; t < half; t += 160) {
+      if (chance(random, 0.55)) {
+        const sx = r - roadWidth / 2 - 2;
+        const sz = t;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 3.2, 6), signPoleMat);
+        pole.position.set(sx, 1.6, sz);
+        group.add(pole);
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.55), signFaceMat);
+        face.position.set(sx, 3.1, sz);
+        face.rotation.y = chance(random, 0.5) ? 0 : Math.PI / 2;
+        group.add(face);
+      }
+    }
+  }
+  const bushMat = new THREE.MeshLambertMaterial({ color: PALETTE.bush });
+  for (let i = 0; i < 40; i += 1) {
+    const r = pick(random, roads);
+    const t = range(random, -half + 20, half - 20);
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(range(random, 0.8, 1.5), 8, 6), bushMat);
+    bush.scale.y = 0.65;
+    bush.position.set(
+      chance(random, 0.5) ? r + roadWidth / 2 + 4 : t,
+      0.4,
+      chance(random, 0.5) ? t : r + roadWidth / 2 + 4,
+    );
+    group.add(bush);
+  }
+  // Beach umbrellas on the sand.
+  for (let i = 0; i < 6; i += 1) {
+    const ux = CITY.beachX + range(random, 6, 22);
+    const uz = range(random, -200, 200);
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 2.4, 6),
+      new THREE.MeshLambertMaterial({ color: 0xf2ede2 }),
+    );
+    pole.position.set(ux, 1.2, uz);
+    group.add(pole);
+    const top = new THREE.Mesh(
+      new THREE.ConeGeometry(2.3, 1.1, 10),
+      new THREE.MeshLambertMaterial({ color: pick(random, PALETTE.umbrella) }),
+    );
+    top.position.set(ux, 2.8, uz);
+    group.add(top);
+  }
+
   // --- Beach, ocean and the pier. ---
+  const sandTex = speckleTexture('#e8d5a4', '#d8c08a', 200, 913);
+  sandTex.repeat.set(6, 60);
   const sand = new THREE.Mesh(
     new THREE.PlaneGeometry(60, half * 2 + 120),
-    new THREE.MeshLambertMaterial({ color: PALETTE.sand }),
+    new THREE.MeshLambertMaterial({ map: sandTex }),
   );
   sand.rotation.x = -Math.PI / 2;
   sand.position.set(CITY.beachX + 8, 0.01, 0);
@@ -290,7 +483,9 @@ export function buildCity(scene, random) {
   group.add(sand);
   // Ocean in two planes with a gap for the pier strip (z 30..50), so the
   // wooden deck — whose top sits just above the waterline — stays visible.
-  const oceanMat = new THREE.MeshLambertMaterial({ color: PALETTE.ocean, transparent: true, opacity: 0.92 });
+  const oceanTex = waveTexture('#2e7fa8');
+  oceanTex.repeat.set(8, 8);
+  const oceanMat = new THREE.MeshLambertMaterial({ map: oceanTex, transparent: true, opacity: 0.92 });
   const oceanNorth = new THREE.Mesh(new THREE.PlaneGeometry(700, 830), oceanMat);
   oceanNorth.rotation.x = -Math.PI / 2;
   oceanNorth.position.set(CITY.waterX + 350, 0.05, -385);
