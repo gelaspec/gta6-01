@@ -74,6 +74,7 @@ export function createInput(canvas) {
       }
     }
     fireQueued = true;
+    actions |= ACTION_CONFIRM; // a click also starts / resumes from a menu screen
   });
 
   function has(codes) {

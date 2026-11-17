@@ -1,7 +1,8 @@
-// A tiny static server for game/ (Node 22, standard library only), so an entry can be played
-// locally without a build step: `node serve.ts` serves game/ on http://localhost:8080.
-// It sends the MIME types a browser game needs, refuses any path outside game/, and otherwise
-// does nothing clever: this is a development convenience, not a web server for the internet.
+// A small static file server for local play (Node 22, standard library only).
+// Run `node serve.ts`, open http://localhost:8080, and game/ is served from
+// there — no build step, no network. It answers with the MIME type each file
+// needs, refuses every path that would escape game/, and does nothing else:
+// a development convenience, not a server for the internet.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Bay — Open-World Crime</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1420; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #eef1f5; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  #hud.dim { filter: brightness(.85); }
+  .panel { position: absolute; background: rgba(10, 16, 26, .55); border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(2px); }
+  #money-box { top: 14px; left: 14px; }
+  #money { font-size: 28px; font-weight: 800; color: #7ee787; letter-spacing: .5px; }
+  #mission-box { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; max-width: 520px; }
+  #mission-title { font-size: 17px; font-weight: 800; color: #f2c94c; }
+  #mission-text { font-size: 14px; color: #eef1f5; margin-top: 2px; }
+  #mission-timer { font-size: 22px; font-weight: 800; color: #ff9a5c; margin-top: 2px; }
+  #stars-box { top: 14px; right: 14px; text-align: right; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #8b93a3; }
+  #stars.hot { color: #ffd23e; animation: pulse 0.8s infinite alternate; }
+  @keyframes pulse { from { opacity: .75; } to { opacity: 1; } }
+  #health-box { left: 14px; bottom: 14px; width: 220px; }
+  #health-bar { height: 12px; background: rgba(255,255,255,.18); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  #health-fill { height: 100%; width: 100%; background: #3aa856; border-radius: 6px; transition: width .2s; }
+  #health-label { font-size: 12px; letter-spacing: 1px; color: #b8c0cc; }
+  #health-num { font-size: 13px; font-weight: 700; }
+  #speed { right: 14px; bottom: 14px; text-align: right; display: none; }
+  #speed.show { display: block; }
+  #speed-val { font-size: 40px; font-weight: 800; line-height: 1; }
+  #speed-unit { font-size: 13px; color: #b8c0cc; }
+  #minimap-wrap { right: 14px; bottom: 96px; padding: 6px; }
+  #minimap { display: block; width: 190px; height: 190px; border-radius: 6px; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; display: none; }
+  #crosshair.show { display: block; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,.9); box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #toast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); font-size: 20px; font-weight: 700; color: #f2c94c; opacity: 0; transition: opacity .3s; text-align: center; }
+  #toast.show { opacity: 1; }
+  #hint { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); font-size: 15px; color: #fff; background: rgba(10,16,26,.6); padding: 6px 14px; border-radius: 20px; opacity: 0; transition: opacity .2s; }
+  #hint.show { opacity: 1; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: rgba(8, 12, 20, .45); color: #eef1f5; pointer-events: none; }
+  .screen.show { display: flex; }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 2px; color: #f2c94c; text-shadow: 0 4px 24px rgba(0,0,0,.8); }
+  .screen h2 { font-size: 26px; margin: 8px 0 0; font-weight: 600; color: #fff; }
+  .screen p { font-size: 16px; color: #d5dce6; max-width: 560px; line-height: 1.5; }
+  .screen .keys { font-size: 14px; color: #9fb0c3; margin-top: 14px; line-height: 1.9; }
+  .screen .keys b { color: #fff; background: rgba(255,255,255,.12); padding: 1px 7px; border-radius: 5px; }
+  #screen-busted h1 { color: #ff5a4e; }
+  #screen-complete h1 { color: #7ee787; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game" aria-label="Meridian Bay: an open-world crime game. Drive, steal cars, outrun the police and run the Meridian Job."></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<div id="hud">
+  <div class="panel" id="money-box"><div id="money">$250</div><div style="font-size:12px;color:#b8c0cc;letter-spacing:1px">MERIDIAN BAY</div></div>
+  <div class="panel" id="mission-box"><div id="mission-title">M1: First Wheels</div><div id="mission-text">Steal a car and drive to the Marina.</div><div id="mission-timer"></div></div>
+  <div class="panel" id="stars-box"><div id="stars">☆☆☆☆☆</div><div style="font-size:12px;color:#b8c0cc;letter-spacing:1px">WANTED</div></div>
+  <div class="panel" id="health-box"><span id="health-label">HEALTH</span> <span id="health-num">100</span><div id="health-bar"><div id="health-fill"></div></div></div>
+  <div class="panel" id="speed"><div id="speed-val">0</div><div id="speed-unit">km/h</div></div>
+  <div class="panel" id="minimap-wrap"><canvas id="minimap" width="190" height="190"></canvas></div>
+  <div id="crosshair"></div>
+  <div id="toast"></div>
+  <div id="hint"></div>
+</div>
+<div class="screen show" id="screen-title">
+  <h1>MERIDIAN BAY</h1>
+  <h2>An open-world crime story in a sun-soaked port city</h2>
+  <p>Vex Marlow is back in town with nothing but a debt and a fast mouth. Delia Voss has six jobs for you — steal, deliver, survive the heat, and pull the Meridian Job. The city is yours: on foot or behind the wheel.</p>
+  <p id="title-stats">A new story in Meridian Bay</p>
+  <div class="keys"><b>W A S D</b> move &nbsp; <b>Shift</b> run &nbsp; <b>Space</b> jump / handbrake<br><b>E</b> steal / exit car &nbsp; <b>F</b> punch &nbsp; <b>Click</b> shoot &nbsp; <b>C</b> camera &nbsp; <b>P</b> pause &nbsp; <b>M</b> mute</div>
+  <p>Press <b>Enter</b> or click to start</p>
+</div>
+<div class="screen" id="screen-pause">
+  <h1>PAUSED</h1>
+  <p>The city waits for no one — except right now.</p>
+  <p>Press <b>P</b> or <b>Enter</b> to resume</p>
+</div>
+<div class="screen" id="screen-busted">
+  <h1 id="busted-title">BUSTED</h1>
+  <h2>The Meridian Bay PD caught up with you.</h2>
+  <p>Press <b>Enter</b> to get back out on the streets. Your money and mission progress are kept.</p>
+</div>
+<div class="screen" id="screen-complete">
+  <h1>THE MERIDIAN JOB</h1>
+  <h2>Story complete — the vault is empty and the boat is gone.</h2>
+  <p id="complete-stats"></p>
+  <p>Free roam continues: find the hidden packages, run taxi fares, and see how rich Vex can get.</p>
+  <p>Press <b>Enter</b> to keep playing</p>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
