@@ -124,7 +124,7 @@ export function stageShot(name, world) {
     car.z = -120;
     car.yaw = 0;
     car.speed = 22;
-    simulate(world, 4, () => driveInput(world, { x: 240, z: 280 }));
+    simulate(world, 3, () => driveInput(world, { x: 240, z: 280 }));
     frameCar(world, 12, 9, 4.0);
   } else if (name === 'foot') {
     // On foot on the pier at golden hour, pedestrians around, packages to find.
