@@ -191,13 +191,18 @@ export function buildCity(scene, random) {
   sand.position.set(CITY.beachX + 8, 0.01, 0);
   sand.receiveShadow = true;
   group.add(sand);
-  const ocean = new THREE.Mesh(
-    new THREE.PlaneGeometry(700, 1600),
-    new THREE.MeshLambertMaterial({ color: PALETTE.ocean, transparent: true, opacity: 0.92 }),
-  );
-  ocean.rotation.x = -Math.PI / 2;
-  ocean.position.set(CITY.waterX + 350, 0.05, 0);
-  group.add(ocean);
+  // Ocean in two planes with a gap for the pier strip (z 30..50), so the
+  // wooden deck — whose top sits just above the waterline — stays visible.
+  const oceanMat = new THREE.MeshLambertMaterial({ color: PALETTE.ocean, transparent: true, opacity: 0.92 });
+  const oceanNorth = new THREE.Mesh(new THREE.PlaneGeometry(700, 830), oceanMat);
+  oceanNorth.rotation.x = -Math.PI / 2;
+  oceanNorth.position.set(CITY.waterX + 350, 0.05, -385);
+  group.add(oceanNorth);
+  const oceanSouth = new THREE.Mesh(new THREE.PlaneGeometry(700, 750), oceanMat);
+  oceanSouth.rotation.x = -Math.PI / 2;
+  oceanSouth.position.set(CITY.waterX + 350, 0.05, 425);
+  group.add(oceanSouth);
+  const ocean = oceanNorth;
 
   const pierMat = new THREE.MeshLambertMaterial({ color: PALETTE.pierWood });
   const pier = new THREE.Group();
@@ -205,7 +210,7 @@ export function buildCity(scene, random) {
   // walk the pier at street level.
   for (let x = CITY.beachX; x < CITY.pierEndX; x += 4) {
     const plank = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 16), pierMat);
-    plank.position.set(x, -0.25, CITY.pierZ);
+    plank.position.set(x, -0.1, CITY.pierZ);
     plank.castShadow = true;
     plank.receiveShadow = true;
     pier.add(plank);

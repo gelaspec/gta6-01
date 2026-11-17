@@ -40,12 +40,12 @@ function enterNearestCar(world, x, z, yaw) {
   return car;
 }
 
-function frameCar(world, ahead) {
+function frameCar(world, ahead, dist, height) {
   const car = world.vehicles.playerCar;
   const fx = Math.sin(car.yaw);
   const fz = Math.cos(car.yaw);
   world.renderer.fixed(
-    { x: car.x - fx * 11, y: 4.6, z: car.z - fz * 11 },
+    { x: car.x - fx * (dist || 11), y: height || 4.6, z: car.z - fz * (dist || 11) },
     { x: car.x + fx * (ahead || 10), y: 1.5, z: car.z + fz * (ahead || 10) },
   );
 }
@@ -105,7 +105,7 @@ export function stageShot(name, world) {
     car.yaw = 0;
     car.speed = 22;
     simulate(world, 4, () => driveInput(world, { x: 240, z: 280 }));
-    frameCar(world, 12);
+    frameCar(world, 12, 9, 4.0);
   } else if (name === 'foot') {
     // On foot on the pier at golden hour, pedestrians around, packages to find.
     world.missions.setMission(2);
