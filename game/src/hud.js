@@ -194,6 +194,13 @@ export function createHud(city) {
       radioEl.textContent = s.radio;
       lastRadio = s.radio;
     }
+    if (s.wanted !== undefined && s.wanted !== lastWanted) {
+      let stars = '';
+      for (let i = 0; i < 5; i += 1) stars += i < s.wanted ? '★' : '☆';
+      starsEl.textContent = stars;
+      starsEl.classList.toggle('hot', s.wanted > 0);
+      lastWanted = s.wanted;
+    }
     if (s.health !== lastHealth) {
       healthFill.style.width = `${Math.max(0, s.health)}%`;
       healthNum.textContent = `${Math.ceil(s.health)}`;

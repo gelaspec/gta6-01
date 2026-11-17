@@ -164,14 +164,16 @@ export function stageShot(name, world) {
       cop.group.position.set(240, 0, 40 + 16 + i * 14);
       cop.group.rotation.y = Math.PI;
     });
-    // Traffic ahead on the coast road and peds on the sidewalks, in frame.
+    // Traffic in the camera's view (behind the player, toward +z) and peds
+    // on the sidewalks, in frame. Cars ahead of the chase sit behind the
+    // reverse camera and would be invisible — they go here instead.
     stageTraffic(world, [
-      { x: 240, z: -40, yaw: Math.PI, color: 0x2e6fc2, axis: 'x', value: 240, dir: -1, speed: 10 },
-      { x: 240, z: -120, yaw: Math.PI, color: 0xe8c832, axis: 'x', value: 240, dir: -1, speed: 9 },
-      { x: 233, z: 110, yaw: 0, color: 0x3aa856, axis: 'x', value: 240, dir: 1, speed: 8 },
-      { x: 160, z: 40, yaw: Math.PI / 2, color: 0xeeeeee, axis: 'z', value: 40, dir: 1, speed: 9 },
+      { x: 233, z: 100, yaw: 0, color: 0x3aa856, axis: 'x', value: 240, dir: 1, speed: 8 },
+      { x: 247, z: 150, yaw: Math.PI, color: 0x2e6fc2, axis: 'x', value: 240, dir: -1, speed: 9 },
+      { x: 120, z: 80, yaw: Math.PI / 2, color: 0xeeeeee, axis: 'z', value: 80, dir: 1, speed: 9 },
+      { x: 200, z: 80, yaw: -Math.PI / 2, color: 0xe87a2e, axis: 'z', value: 80, dir: -1, speed: 8 },
     ]);
-    stagePeds(world, [[228, 20], [252, -8], [228, 64], [252, 96]]);
+    stagePeds(world, [[228, 30], [252, 55], [228, 95], [252, 125], [228, 140]]);
     world.dialog.show('MBPD DISPATCH', DIALOG_LINES.dispatch[3], { sticky: true });
     frameCarReverse(world);
   } else if (name === 'dialog') {
