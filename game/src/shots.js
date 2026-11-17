@@ -93,6 +93,26 @@ export function stageShot(name, world) {
     car.speed = 26;
     simulate(world, 4.5, () => driveInput(world, { x: 240, z: -280 }));
     world.missions.setMission(3, 'b');
+    // Snap the chase back onto the coast road: the 4.5 s drive can be knocked
+    // off-road by traffic or an interceptor, which would frame the player
+    // car on the grass with no police in shot. The world stays live — the
+    // snap only guarantees the composition.
+    const pc = world.vehicles.playerCar;
+    pc.x = 240;
+    pc.z = 40;
+    pc.yaw = Math.PI;
+    pc.speed = 26;
+    pc.group.position.set(240, 0, 40);
+    pc.group.rotation.y = Math.PI;
+    world.player.teleport(240, 40, Math.PI);
+    world.police.policeCars.forEach((cop, i) => {
+      cop.x = 240;
+      cop.z = 40 + 16 + i * 14;
+      cop.yaw = Math.PI;
+      cop.speed = 30;
+      cop.group.position.set(240, 0, 40 + 16 + i * 14);
+      cop.group.rotation.y = Math.PI;
+    });
     frameCarReverse(world);
   } else if (name === 'drive') {
     // Cruising the coast road in traffic, first job on the HUD.

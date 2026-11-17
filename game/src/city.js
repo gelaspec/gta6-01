@@ -177,7 +177,7 @@ function zebraTexture() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 64, 128);
   ctx.fillStyle = 'rgba(232,228,210,0.92)';
-  for (let i = 0; i < 6; i += 1) ctx.fillRect(2, 6 + i * 21, 60, 12);
+  for (let i = 0; i < 10; i += 1) ctx.fillRect(2, 4 + i * 13, 60, 7);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -223,19 +223,23 @@ export function buildCity(scene, random) {
     }
   }
 
-  // Zebra crossings at every intersection, one across each road.
+  // Zebra crossings at every intersection: one on each approach, offset from
+  // the centre so the four crossings read as a real junction, not a white
+  // block.
   const zebraMat = new THREE.MeshLambertMaterial({ map: zebraTexture(), transparent: true });
   for (const r1 of roads) {
     for (const r2 of roads) {
-      const za = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
-      za.rotation.x = -Math.PI / 2;
-      za.position.set(r1, 0.04, r2);
-      group.add(za);
-      const zb = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
-      zb.rotation.x = -Math.PI / 2;
-      zb.rotation.z = Math.PI / 2;
-      zb.position.set(r1, 0.045, r2);
-      group.add(zb);
+      for (const off of [-11, 11]) {
+        const za = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
+        za.rotation.x = -Math.PI / 2;
+        za.position.set(r1 + off, 0.04, r2);
+        group.add(za);
+        const zb = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 15), zebraMat);
+        zb.rotation.x = -Math.PI / 2;
+        zb.rotation.z = Math.PI / 2;
+        zb.position.set(r1, 0.045, r2 + off);
+        group.add(zb);
+      }
     }
   }
 
@@ -497,7 +501,7 @@ export function buildCity(scene, random) {
   const ocean = oceanNorth;
 
   const pierMat = new THREE.MeshLambertMaterial({ color: PALETTE.pierWood });
-  const pierMatB = new THREE.MeshLambertMaterial({ color: 0x8a6a44 });
+  const pierMatB = new THREE.MeshLambertMaterial({ color: 0x77552f });
   const pier = new THREE.Group();
   // The deck sits flush with the ground (top at y = 0) so the player can
   // walk the pier at street level. Planks alternate two wood tones so the
@@ -559,18 +563,22 @@ export function buildCity(scene, random) {
   function stall(x, z, color, word, flip) {
     const g = new THREE.Group();
     g.add(box(6, 3, 5, color, 0, 1.5, 0));
+    // Counter and a dark serving window on the front face.
+    g.add(box(5.5, 1.0, 0.8, 0x7a5a3a, 0, 0.55, 2.6));
+    g.add(box(5, 0.9, 0.1, 0x2a3440, 0, 1.5, 2.56));
+    // Striped awning sloping down from the top of the front face.
     const awn = new THREE.Mesh(
-      new THREE.PlaneGeometry(6.4, 2.2),
+      new THREE.PlaneGeometry(6.4, 1.4),
       new THREE.MeshLambertMaterial({ map: awningTexture(color), side: THREE.DoubleSide }),
     );
-    awn.position.set(0, 3.4, 2.6);
-    awn.rotation.x = -0.5;
+    awn.position.set(0, 2.6, 3.5);
+    awn.rotation.x = -1.2;
     g.add(awn);
     const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.4, 1.1),
+      new THREE.PlaneGeometry(4.4, 0.8),
       new THREE.MeshLambertMaterial({ map: signTexture(word) }),
     );
-    sign.position.set(0, 3.15, 2.56);
+    sign.position.set(0, 2.65, 2.56);
     g.add(sign);
     g.position.set(x, 0, z);
     if (flip) g.rotation.y = Math.PI;

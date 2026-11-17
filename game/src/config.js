@@ -69,7 +69,7 @@ export const SAVE_KEY = 'meridian-bay.save.v1';
 
 export const PALETTE = {
   sky: 0x8ec9ee,
-  fog: 0xbcd4e6,
+  fog: 0xe3c69c,
   sun: 0xffe2ac,
   grass: 0x7d9b5e,
   sand: 0xe8d5a4,

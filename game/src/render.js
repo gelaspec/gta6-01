@@ -82,7 +82,7 @@ export function createRenderer(canvas) {
     scene.add(cloud);
   }
 
-  const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x8a7a5a, 1.35);
+  const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x8a7a5a, 1.45);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(PALETTE.sun, 2.3);
   sun.position.set(280, 420, 160);
@@ -94,13 +94,13 @@ export function createRenderer(canvas) {
   sun.shadow.camera.bottom = -380;
   sun.shadow.camera.near = 50;
   sun.shadow.camera.far = 1100;
-  sun.shadow.bias = -0.0008;
-  sun.shadow.normalBias = 0.6;
+  sun.shadow.bias = -0.001;
+  sun.shadow.normalBias = 1.0;
   scene.add(sun);
   scene.add(sun.target);
   // A soft fill from the northwest so the sun's shadow sides never go black,
   // plus a warm bounce off the ocean side.
-  const fill = new THREE.DirectionalLight(0xbfd8ff, 0.85);
+  const fill = new THREE.DirectionalLight(0xbfd8ff, 1.0);
   fill.position.set(-260, 180, -140);
   scene.add(fill);
   const bounce = new THREE.DirectionalLight(0xffe0b8, 0.35);
