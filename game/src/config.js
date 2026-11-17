@@ -69,8 +69,8 @@ export const SAVE_KEY = 'meridian-bay.save.v1';
 
 export const PALETTE = {
   sky: 0x8ec9ee,
-  fog: 0xa8d0e8,
-  sun: 0xfff2d8,
+  fog: 0xbcd4e6,
+  sun: 0xffe2ac,
   grass: 0x7d9b5e,
   sand: 0xe8d5a4,
   ocean: 0x2e7fa8,
@@ -93,6 +93,13 @@ export const PALETTE = {
   text: '#eef1f5',
   muted: '#b8c0cc',
   gold: '#f2c94c',
+  // Polish pass: neon shop signs, beach umbrellas, street furniture.
+  neon: [0xff5a5a, 0x35e0c8, 0xffc93c, 0xff7ad9, 0x7ab8ff],
+  umbrella: [0xe84a5f, 0xffc93c, 0x35e0c8, 0xff7a2e, 0xf2f2f2],
+  hydrant: 0xc23b2e,
+  bush: 0x4a7a3f,
+  signGreen: 0x2a6e3f,
+  benchWood: 0x7a5a3a,
 };
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
