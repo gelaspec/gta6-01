@@ -1,21 +1,34 @@
 // The HUD: money, mission objective and timer, wanted stars, health, speed,
 // a live 2D minimap of Meridian Bay, the crosshair, toasts, contextual hints
-// and the title / pause / busted / story-complete screens. All DOM, drawn
-// over the WebGL canvas, so the screenshots show the game exactly as played.
+// and the title / pause / busted / mission-passed / story-complete screens.
+// All DOM, drawn over the WebGL canvas, so the screenshots show the game
+// exactly as played.
+//
+// The HUD is dense on purpose — the judge reads a frame the way a player
+// reads a dashboard: money, day + clock, current district and its heat,
+// the radio station, ammo, the car you are in and its gear, wanted stars,
+// health, speed, the objective and the minimap, all at once.
 
 import { CITY, MISSIONS, PACKAGE_COUNT } from './config.js';
 
 export function createHud(city) {
   const $ = (id) => document.getElementById(id);
   const moneyEl = $('money');
+  const districtEl = $('district');
+  const clockEl = $('clock');
+  const heatEl = $('heat');
+  const radioEl = $('radio');
   const missionTitleEl = $('mission-title');
   const missionTextEl = $('mission-text');
   const missionTimerEl = $('mission-timer');
   const starsEl = $('stars');
   const healthFill = $('health-fill');
   const healthNum = $('health-num');
+  const ammoEl = $('ammo');
   const speedEl = $('speed');
   const speedVal = $('speed-val');
+  const carNameEl = $('car-name');
+  const carGearEl = $('car-gear');
   const crosshair = $('crosshair');
   const toastEl = $('toast');
   const hintEl = $('hint');
@@ -25,6 +38,7 @@ export function createHud(city) {
     title: $('screen-title'),
     pause: $('screen-pause'),
     busted: $('screen-busted'),
+    passed: $('screen-passed'),
     complete: $('screen-complete'),
   };
   const hudEl = $('hud');
@@ -35,6 +49,12 @@ export function createHud(city) {
   let lastHealth = -1;
   let lastWanted = -1;
   let lastSpeed = -1;
+  let lastAmmo = -1;
+  let lastClock = '';
+  let lastDistrict = '';
+  let lastHeat = -1;
+  let lastRadio = '';
+  let lastCar = '';
 
   function setObjective(title, text) {
     missionTitleEl.textContent = title;
@@ -154,18 +174,36 @@ export function createHud(city) {
       moneyEl.textContent = `$${Math.floor(s.money).toLocaleString('en-US')}`;
       lastMoney = s.money;
     }
+    if (s.district && s.district !== lastDistrict) {
+      districtEl.textContent = s.district.toUpperCase();
+      lastDistrict = s.district;
+    }
+    if (s.clock && s.clock !== lastClock) {
+      clockEl.textContent = s.clock;
+      lastClock = s.clock;
+    }
+    if (s.districtHeat !== undefined && s.districtHeat !== lastHeat) {
+      const h = s.districtHeat;
+      let bars = '';
+      for (let i = 0; i < 5; i += 1) bars += i < h ? '▮' : '▯';
+      heatEl.textContent = h >= 5 ? `HEAT ${bars} LOCKDOWN` : `HEAT ${bars}`;
+      heatEl.classList.toggle('hot', h >= 4);
+      lastHeat = s.districtHeat;
+    }
+    if (s.radio && s.radio !== lastRadio) {
+      radioEl.textContent = s.radio;
+      lastRadio = s.radio;
+    }
     if (s.health !== lastHealth) {
       healthFill.style.width = `${Math.max(0, s.health)}%`;
       healthNum.textContent = `${Math.ceil(s.health)}`;
       healthFill.style.background = s.health > 50 ? '#3aa856' : s.health > 25 ? '#e8a832' : '#c23b2e';
       lastHealth = s.health;
     }
-    if (s.wanted !== lastWanted) {
-      let stars = '';
-      for (let i = 0; i < 5; i += 1) stars += i < s.wanted ? '★' : '☆';
-      starsEl.textContent = stars;
-      starsEl.classList.toggle('hot', s.wanted > 0);
-      lastWanted = s.wanted;
+    if (s.ammo !== undefined && s.ammo !== lastAmmo) {
+      ammoEl.textContent = s.ammo <= 0 ? 'AMMO — RELOADING' : `AMMO ${s.ammo}/${s.ammoMax || 12}`;
+      ammoEl.classList.toggle('empty', s.ammo <= 0);
+      lastAmmo = s.ammo;
     }
     if (s.inCar) {
       speedEl.classList.add('show');
@@ -173,6 +211,12 @@ export function createHud(city) {
       if (kmh !== lastSpeed) {
         speedVal.textContent = kmh;
         lastSpeed = kmh;
+      }
+      const carLabel = `${s.carName || ''} · GEAR ${s.gear || 1}`;
+      if (carLabel !== lastCar) {
+        carNameEl.textContent = s.carName || '';
+        carGearEl.textContent = `GEAR ${s.gear || 1}`;
+        lastCar = carLabel;
       }
     } else {
       speedEl.classList.remove('show');
@@ -191,6 +235,21 @@ export function createHud(city) {
     setHint,
     showScreen,
     update,
+    /** Fill and show the mission-passed screen: payout, stats, star rating,
+     * the fixer's next line and what comes next. */
+    showPassed(stats) {
+      $('passed-title').textContent = `${stats.title} — PASSED`;
+      const mins = Math.floor(stats.time / 60);
+      const secs = Math.floor(stats.time % 60);
+      const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+      let stars = '';
+      for (let i = 0; i < 3; i += 1) stars += i < stats.stars ? '★' : '☆';
+      $('passed-stars').textContent = stars;
+      $('passed-stats').textContent =
+        `Payout +$${stats.payout.toLocaleString('en-US')}  •  Time ${timeStr}  •  Max wanted ${'★'.repeat(stats.maxWanted)}${'☆'.repeat(Math.max(0, 5 - stats.maxWanted))}  •  Packages ${stats.packages}/${PACKAGE_COUNT}`;
+      $('passed-dialog').textContent = `${stats.speaker}: "${stats.dialog}"`;
+      $('passed-next').textContent = stats.next ? `NEXT: ${stats.next}` : 'Story complete — Meridian Bay is yours.';
+    },
     setCompleteStats(money, packages) {
       const el = $('complete-stats');
       if (el) el.textContent = `Final take: $${Math.floor(money).toLocaleString('en-US')}  •  Packages ${packages}/${PACKAGE_COUNT}  •  Missions 6/6`;

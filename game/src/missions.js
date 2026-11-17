@@ -1,11 +1,13 @@
-// "The Meridian Job": six story missions from Delia Voss, plus the side
+// "The Meridian Job": six story missions from Inez Kade, plus the side
 // work that pays between them — ten hidden packages around the city and
 // taxi fares for anyone who flags a cab down. A mission is a small state
 // machine: an objective, a waypoint beacon in the world, and a condition
-// that pays out when it is met.
+// that pays out when it is met. Every job opens with the fixer's briefing
+// and ends on a mission-passed screen with payout, stats and a star rating.
 
 import * as THREE from 'three';
-import { MISSIONS, PACKAGE_COUNT, PACKAGE_REWARD } from './config.js';
+import { FIXER, MISSIONS, PACKAGE_COUNT, PACKAGE_REWARD } from './config.js';
+import { DIALOG_LINES } from './dialog.js';
 import { range } from './random.js';
 
 const PACKAGE_SPOTS = [
@@ -51,6 +53,8 @@ export function createMissions(scene, city, random, game) {
     taxiCooldown: 8,
     objective: '',
     waypoint: null,
+    missionTime: 0, // seconds spent on the current mission (passed screen)
+    maxWanted: 0, // highest wanted level reached this mission (passed screen)
   };
 
   function setObjective(text, waypoint) {
@@ -76,17 +80,40 @@ export function createMissions(scene, city, random, game) {
     const m = MISSIONS[state.index];
     pay(m.reward, `${m.title} complete!`);
     game.saveProgress();
+    const stats = {
+      title: `M${m.id}: ${m.title}`,
+      payout: m.reward,
+      time: state.missionTime,
+      maxWanted: state.maxWanted,
+      packages: packages.filter((p) => p.found).length,
+      stars: Math.max(1, 3 - (state.missionTime > (m.par || 180) ? 1 : 0) - (state.maxWanted >= 4 ? 1 : 0)),
+      speaker: FIXER,
+      dialog: DIALOG_LINES.next[state.index],
+      next: state.index + 1 < MISSIONS.length
+        ? `M${MISSIONS[state.index + 1].id}: ${MISSIONS[state.index + 1].title}`
+        : '',
+    };
     state.index += 1;
     state.phase = 'a';
     state.timer = 0;
     state.holdTimer = 0;
     state.collected = 0;
     state.van = null;
+    state.missionTime = 0;
+    state.maxWanted = 0;
     startMission();
+    game.onMissionPassed(stats);
+  }
+
+  function showBriefing() {
+    if (state.index >= MISSIONS.length) return;
+    game.dialog.show(FIXER, DIALOG_LINES.briefings[state.index]);
   }
 
   function startMission() {
     const i = state.index;
+    state.missionTime = 0;
+    state.maxWanted = 0;
     if (i >= MISSIONS.length) {
       setObjective('The Meridian Job is done. Meridian Bay is yours — free roam, find the packages, run fares.', null);
       game.hud.toast('STORY COMPLETE — The Meridian Job');
@@ -153,6 +180,10 @@ export function createMissions(scene, city, random, game) {
     }
     updateTaxi(dt);
     const i = state.index;
+    if (i < MISSIONS.length) {
+      state.missionTime += dt;
+      state.maxWanted = Math.max(state.maxWanted, game.police.wanted);
+    }
     if (i >= MISSIONS.length) return;
     if (i === 0) {
       if (inCar() && distTo(city.marina.x, city.marina.z) < 14) completeMission();
@@ -164,7 +195,7 @@ export function createMissions(scene, city, random, game) {
         completeMission();
       } else if (state.timer <= 0) {
         state.timer = 90;
-        game.hud.toast('Too slow — Delia gives you another shot. 90 seconds, go.');
+        game.dialog.show(FIXER, DIALOG_LINES.mid['m1-fail']);
         game.audio.denied();
       }
     } else if (i === 2) {
@@ -188,6 +219,7 @@ export function createMissions(scene, city, random, game) {
         if (game.police.wanted >= 3) {
           state.phase = 'b';
           setObjective('Three stars! Now lose them — break line of sight and stay quiet.', null);
+          game.dialog.show(FIXER, DIALOG_LINES.mid['m3-hot']);
         }
       } else if (game.police.wanted === 0) {
         completeMission();
@@ -197,6 +229,7 @@ export function createMissions(scene, city, random, game) {
         if (state.van && game.vehicles.playerCar === state.van) {
           state.phase = 'b';
           setObjective('Van secured. Lose any tail and drive it to the hideout.', { x: city.hideout.x, z: city.hideout.z });
+          game.dialog.show(FIXER, DIALOG_LINES.mid['m4-van']);
         }
       } else if (state.van && game.vehicles.playerCar === state.van && distTo(city.hideout.x, city.hideout.z) < 14) {
         completeMission();
@@ -212,6 +245,7 @@ export function createMissions(scene, city, random, game) {
           game.combat.spawnEnemy(city.bank.x + 2, city.bank.z - 10, 'gang');
           setObjective('Hold the bank! 20 seconds while the whole city comes for you.', { x: city.bank.x, z: city.bank.z });
           game.hud.toast('ALARM — 4 stars!');
+          game.dialog.show(FIXER, DIALOG_LINES.mid['m5-alarm']);
         }
       } else if (state.phase === 'b') {
         state.holdTimer -= dt;
@@ -223,6 +257,7 @@ export function createMissions(scene, city, random, game) {
           game.hud.setTimer(null);
           state.phase = 'c';
           setObjective('Vault empty! Run for the pier — the boat is waiting.', { x: city.pierEnd.x, z: city.pierEnd.z });
+          game.dialog.show(FIXER, DIALOG_LINES.mid['m5-vault']);
         }
       } else if (distTo(city.pierEnd.x, city.pierEnd.z) < 12) {
         completeMission();
@@ -302,6 +337,7 @@ export function createMissions(scene, city, random, game) {
     update,
     applySave,
     foundPackageIds,
+    showBriefing,
     reset() {
       state.index = 0;
       state.phase = 'a';

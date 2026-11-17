@@ -64,12 +64,12 @@ export const CAR_NAMES = [
 export const RADIO_STATIONS = ['MERIDIAN FM 98.1', 'BAYWAVE 104.5', 'NEON NIGHTS 91.3'];
 
 export const MISSIONS = [
-  { id: 1, title: 'First Wheels', giver: 'Inez Kade', reward: 500 },
-  { id: 2, title: 'Courier Run', giver: 'Inez Kade', reward: 800 },
-  { id: 3, title: 'The Pickup', giver: 'Inez Kade', reward: 1000 },
-  { id: 4, title: 'Heat', giver: 'Inez Kade', reward: 1500 },
-  { id: 5, title: 'Pier Heist', giver: 'Inez Kade', reward: 2500 },
-  { id: 6, title: 'The Meridian Job', giver: 'Inez Kade', reward: 10000 },
+  { id: 1, title: 'First Wheels', giver: 'Inez Kade', reward: 500, par: 120 },
+  { id: 2, title: 'Courier Run', giver: 'Inez Kade', reward: 800, par: 90 },
+  { id: 3, title: 'The Pickup', giver: 'Inez Kade', reward: 1000, par: 180 },
+  { id: 4, title: 'Heat', giver: 'Inez Kade', reward: 1500, par: 150 },
+  { id: 5, title: 'Pier Heist', giver: 'Inez Kade', reward: 2500, par: 240 },
+  { id: 6, title: 'The Meridian Job', giver: 'Inez Kade', reward: 10000, par: 300 },
 ];
 
 export const PACKAGE_COUNT = 10;

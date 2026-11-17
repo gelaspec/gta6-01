@@ -4,9 +4,9 @@
 // foot|mission (with &seed=N) stages that scene instead of running the loop,
 // paints it twice and sets window.__shotReady for a screenshot.
 
-import { STEP } from './config.js';
+import { PROTAGONIST, RADIO_STATIONS, STEP } from './config.js';
 import { createRandom } from './random.js';
-import { buildCity } from './city.js';
+import { buildCity, districtAt } from './city.js';
 import { createRenderer } from './render.js';
 import { ACTION_CAMERA, ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH, createInput } from './input.js';
 import { createPlayer } from './player.js';
@@ -18,6 +18,7 @@ import { createEffects } from './effects.js';
 import { createAudio } from './audio.js';
 import { createMissions } from './missions.js';
 import { createHud } from './hud.js';
+import { DIALOG_LINES, createDialog } from './dialog.js';
 import { loadSave, writeSave } from './save.js';
 import { stageShot } from './shots.js';
 
@@ -45,6 +46,7 @@ const peds = createPedestrians(render.scene, city, rng);
 const police = createPolice(render.scene, city, vehicles, rng);
 const effects = createEffects(render.scene);
 const audio = createAudio();
+const dialog = createDialog();
 const combat = createCombat(render.scene, city, rng, effects, audio, (n) => police.addHeat(n));
 const hud = createHud(city);
 const save = loadSave();
@@ -57,6 +59,13 @@ let camFar = false;
 let mouseIdle = 0;
 let completeShown = false;
 let simulating = false;
+// The city clock runs one game minute per real second; the radio station
+// rotates every 90 seconds of play. Shots set both directly.
+let clockDay = 1;
+let clockMin = 18 * 60 + 24; // DAY 1 18:24 — golden hour over the bay
+let radio = RADIO_STATIONS[0];
+let radioTimer = 0;
+let lastWanted = 0;
 
 function effectivePos() {
   const car = vehicles.playerCar;
@@ -79,8 +88,15 @@ const missions = createMissions(render.scene, city, rng, {
   combat,
   hud,
   audio,
+  dialog,
   addMoney,
   saveProgress,
+  onMissionPassed(stats) {
+    screen = 'passed';
+    hud.showPassed(stats);
+    hud.showScreen('passed');
+    announce(`${stats.title} passed. Press Enter to continue.`);
+  },
 });
 missions.applySave(save);
 hud.setTitleStats(money, save.mission);
@@ -94,7 +110,8 @@ function startGame() {
   screen = 'play';
   hud.showScreen('play');
   audio.ensure();
-  announce('Playing. Vex Marlow, Meridian Bay.');
+  announce(`Playing. ${PROTAGONIST}, Meridian Bay.`);
+  missions.showBriefing();
 }
 
 function resetAfterBusted() {
@@ -159,6 +176,15 @@ function stepGame(dt, inp) {
     if (actions & (ACTION_PAUSE | ACTION_CONFIRM)) {
       screen = 'play';
       hud.showScreen('play');
+    }
+    if (!simulating) render.draw();
+    return;
+  }
+  if (screen === 'passed') {
+    if (actions & ACTION_CONFIRM) {
+      screen = 'play';
+      hud.showScreen('play');
+      missions.showBriefing();
     }
     if (!simulating) render.draw();
     return;
@@ -281,10 +307,27 @@ function stepGame(dt, inp) {
   peds.update(dt, danger);
   const speedNow = inCar ? Math.abs(car.speed) : player.speed;
   police.update(dt, effectivePos(), inCar, speedNow);
+  // Police radio: the dispatch calls the chase as the stars climb.
+  if (police.wanted > lastWanted && police.wanted >= 2) {
+    dialog.show('MBPD DISPATCH', DIALOG_LINES.dispatch[police.wanted] || DIALOG_LINES.dispatch[2]);
+  }
+  lastWanted = police.wanted;
   combat.update(dt, effectivePos(), player);
   missions.update(dt);
   effects.update(dt);
   audio.update(dt, inCar ? car.speed : player.speed, police.wanted);
+  // The city clock runs one game minute per real second; the radio station
+  // rotates every 90 seconds of play.
+  clockMin += dt;
+  if (clockMin >= 1440) {
+    clockMin -= 1440;
+    clockDay += 1;
+  }
+  radioTimer += dt;
+  if (radioTimer > 90) {
+    radioTimer = 0;
+    radio = RADIO_STATIONS[(RADIO_STATIONS.indexOf(radio) + 1) % RADIO_STATIONS.length];
+  }
 
   // Tire smoke when the car slides.
   if (inCar && Math.abs(car.speed) > 12 && Math.abs(car.steer) > 0.35) {
@@ -302,6 +345,7 @@ function stepGame(dt, inp) {
   // HUD.
   const near = !inCar ? vehicles.nearestStealable(player.x, player.z, 3.5) : null;
   hud.setHint(near ? 'Press E to steal the car' : inCar ? 'E exit  •  Space handbrake  •  C camera' : '');
+  const district = districtAt(focus.x, focus.z);
   hud.update(
     {
       money,
@@ -310,6 +354,14 @@ function stepGame(dt, inp) {
       speed: inCar ? car.speed : 0,
       inCar,
       aiming: !inCar,
+      ammo: combat.ammo,
+      ammoMax: combat.ammoMax,
+      carName: inCar ? car.name : '',
+      gear: inCar ? (car.speed < -0.5 ? 'R' : 1 + Math.min(4, Math.floor(Math.abs(car.speed) / 9))) : 1,
+      clock: `DAY ${clockDay} ${String(Math.floor(clockMin / 60)).padStart(2, '0')}:${String(Math.floor(clockMin % 60)).padStart(2, '0')}`,
+      district,
+      districtHeat: police.heatFor(district),
+      radio,
       playerX: focus.x,
       playerZ: focus.z,
       playerYaw: focus.yaw,
@@ -369,8 +421,20 @@ const world = {
   city,
   renderer: render,
   hud,
+  dialog,
   audio,
   effects,
+  setMoney(value) {
+    money = value;
+  },
+  setClock(day, time) {
+    const [h, m] = time.split(':').map(Number);
+    clockDay = day;
+    clockMin = h * 60 + m;
+  },
+  setRadio(name) {
+    radio = name;
+  },
   get camYaw() {
     return camYaw;
   },
@@ -383,8 +447,11 @@ const world = {
     player.group.visible = true;
     police.reset();
     combat.clearEnemies();
+    combat.setAmmo(combat.ammoMax);
     vehicles.reset();
     missions.reset();
+    dialog.hide();
+    lastWanted = 0;
     camYaw = Math.PI;
     camPitch = 0.32;
     screen = 'play';
