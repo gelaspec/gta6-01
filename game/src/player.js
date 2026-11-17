@@ -148,5 +148,8 @@ export function createPlayer(scene) {
     group.rotation.y = state.yaw;
   }
 
-  return { ...state, update, takeDamage, heal, punch, teleport };
+  // Return the live state object itself (not a spread copy): the game reads
+  // player.x / player.yaw / player.health from outside, so those must stay
+  // the same fields update() and teleport() write.
+  return Object.assign(state, { update, takeDamage, heal, punch, teleport });
 }

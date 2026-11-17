@@ -201,9 +201,11 @@ export function buildCity(scene, random) {
 
   const pierMat = new THREE.MeshLambertMaterial({ color: PALETTE.pierWood });
   const pier = new THREE.Group();
+  // The deck sits flush with the ground (top at y = 0) so the player can
+  // walk the pier at street level.
   for (let x = CITY.beachX; x < CITY.pierEndX; x += 4) {
     const plank = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 16), pierMat);
-    plank.position.set(x, 1.2, CITY.pierZ);
+    plank.position.set(x, -0.25, CITY.pierZ);
     plank.castShadow = true;
     plank.receiveShadow = true;
     pier.add(plank);
@@ -216,20 +218,20 @@ export function buildCity(scene, random) {
     }
   }
   // Stalls and a lighthouse at the pier's end.
-  pier.add(box(6, 3, 5, 0xe87a2e, CITY.pierEndX - 40, 3, CITY.pierZ - 4));
-  pier.add(box(6, 3, 5, 0x2e8f86, CITY.pierEndX - 40, 3, CITY.pierZ + 4));
+  pier.add(box(6, 3, 5, 0xe87a2e, CITY.pierEndX - 40, 1.5, CITY.pierZ - 4));
+  pier.add(box(6, 3, 5, 0x2e8f86, CITY.pierEndX - 40, 1.5, CITY.pierZ + 4));
   const tower = new THREE.Mesh(
     new THREE.CylinderGeometry(2.2, 3, 16, 12),
     new THREE.MeshLambertMaterial({ color: 0xf2f2f2 }),
   );
-  tower.position.set(CITY.pierEndX - 6, 9, CITY.pierZ);
+  tower.position.set(CITY.pierEndX - 6, 8, CITY.pierZ);
   tower.castShadow = true;
   pier.add(tower);
   const lampTop = new THREE.Mesh(
     new THREE.CylinderGeometry(1.4, 1.4, 2.4, 12),
     new THREE.MeshLambertMaterial({ color: 0x2a2e33, emissive: 0xffe9a8, emissiveIntensity: 0.8 }),
   );
-  lampTop.position.set(CITY.pierEndX - 6, 18, CITY.pierZ);
+  lampTop.position.set(CITY.pierEndX - 6, 17, CITY.pierZ);
   pier.add(lampTop);
   group.add(pier);
   colliders.push({ minX: CITY.pierEndX - 8, maxX: CITY.pierEndX - 4, minZ: CITY.pierZ - 2, maxZ: CITY.pierZ + 2 });

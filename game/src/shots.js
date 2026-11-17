@@ -50,6 +50,18 @@ function frameCar(world, ahead) {
   );
 }
 
+function frameCarReverse(world) {
+  // From ahead of the car, looking back: the player's car comes toward the
+  // camera with the interceptors right on its tail — the chase, in frame.
+  const car = world.vehicles.playerCar;
+  const fx = Math.sin(car.yaw);
+  const fz = Math.cos(car.yaw);
+  world.renderer.fixed(
+    { x: car.x + fx * 17 + fz * 5, y: 5.2, z: car.z + fz * 17 - fx * 5 },
+    { x: car.x - fx * 14, y: 1.6, z: car.z - fz * 14 },
+  );
+}
+
 function framePlayer(world, yaw, dist, height) {
   const p = world.player;
   const fx = Math.sin(yaw);
@@ -81,7 +93,7 @@ export function stageShot(name, world) {
     car.speed = 26;
     simulate(world, 4.5, () => driveInput(world, { x: 240, z: -280 }));
     world.missions.setMission(3, 'b');
-    frameCar(world, 14);
+    frameCarReverse(world);
   } else if (name === 'drive') {
     // Cruising the coast road in traffic, first job on the HUD.
     world.missions.setMission(0);
