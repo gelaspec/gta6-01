@@ -400,6 +400,9 @@ const world = {
   },
 };
 
+// Debug/probe handle (also lets the shot tooling inspect the staged scene).
+window.__game = world;
+
 if (shot) {
   hud.showScreen('play');
   stageShot(shot, world);
