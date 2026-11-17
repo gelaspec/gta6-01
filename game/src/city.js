@@ -497,11 +497,15 @@ export function buildCity(scene, random) {
   const ocean = oceanNorth;
 
   const pierMat = new THREE.MeshLambertMaterial({ color: PALETTE.pierWood });
+  const pierMatB = new THREE.MeshLambertMaterial({ color: 0x8a6a44 });
   const pier = new THREE.Group();
   // The deck sits flush with the ground (top at y = 0) so the player can
-  // walk the pier at street level.
+  // walk the pier at street level. Planks alternate two wood tones so the
+  // deck reads as boards, not one brown slab.
+  let plankIdx = 0;
   for (let x = CITY.beachX; x < CITY.pierEndX; x += 4) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 16), pierMat);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 16), plankIdx % 2 ? pierMat : pierMatB);
+    plankIdx += 1;
     plank.position.set(x, -0.1, CITY.pierZ);
     plank.castShadow = true;
     plank.receiveShadow = true;
@@ -514,16 +518,93 @@ export function buildCity(scene, random) {
       pier.add(post);
     }
   }
-  // Stalls and a lighthouse at the pier's end.
-  pier.add(box(6, 3, 5, 0xe87a2e, CITY.pierEndX - 40, 1.5, CITY.pierZ - 4));
-  pier.add(box(6, 3, 5, 0x2e8f86, CITY.pierEndX - 40, 1.5, CITY.pierZ + 4));
+  // Side rails linking the posts.
+  for (const side of [-8, 8]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(CITY.pierEndX - CITY.beachX, 0.14, 0.14),
+      pierMatB,
+    );
+    rail.position.set((CITY.beachX + CITY.pierEndX) / 2, 1.9, CITY.pierZ + side);
+    pier.add(rail);
+  }
+  // Stalls with a striped awning and a sign board, facing the walkway.
+  function awningTexture(color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    for (let s = 0; s < 8; s += 1) {
+      ctx.fillStyle = s % 2 ? '#f2ede2' : color;
+      ctx.fillRect(s * 16, 0, 16, 32);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  function signTexture(word) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#22242a';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#ffd94c';
+    ctx.font = 'bold 34px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(word, 128, 44);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  function stall(x, z, color, word, flip) {
+    const g = new THREE.Group();
+    g.add(box(6, 3, 5, color, 0, 1.5, 0));
+    const awn = new THREE.Mesh(
+      new THREE.PlaneGeometry(6.4, 2.2),
+      new THREE.MeshLambertMaterial({ map: awningTexture(color), side: THREE.DoubleSide }),
+    );
+    awn.position.set(0, 3.4, 2.6);
+    awn.rotation.x = -0.5;
+    g.add(awn);
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.4, 1.1),
+      new THREE.MeshLambertMaterial({ map: signTexture(word) }),
+    );
+    sign.position.set(0, 3.15, 2.56);
+    g.add(sign);
+    g.position.set(x, 0, z);
+    if (flip) g.rotation.y = Math.PI;
+    pier.add(g);
+  }
+  stall(CITY.pierEndX - 40, CITY.pierZ - 4, 0xe87a2e, 'FISH', false);
+  stall(CITY.pierEndX - 40, CITY.pierZ + 4, 0x2e8f86, 'BAIT', true);
+  // Lighthouse: red/white bands, a gallery disc and a glowing lamp room.
+  function stripeTexture(c1, c2, bands) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    for (let i = 0; i < bands; i += 1) {
+      ctx.fillStyle = i % 2 ? c1 : c2;
+      ctx.fillRect(0, (i * 128) / bands, 64, 128 / bands);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
   const tower = new THREE.Mesh(
     new THREE.CylinderGeometry(2.2, 3, 16, 12),
-    new THREE.MeshLambertMaterial({ color: 0xf2f2f2 }),
+    new THREE.MeshLambertMaterial({ map: stripeTexture('#f2f2f2', '#c23b2e', 6) }),
   );
   tower.position.set(CITY.pierEndX - 6, 8, CITY.pierZ);
   tower.castShadow = true;
   pier.add(tower);
+  const gallery = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.9, 2.9, 0.35, 12),
+    new THREE.MeshLambertMaterial({ color: 0x2a2e33 }),
+  );
+  gallery.position.set(CITY.pierEndX - 6, 16.1, CITY.pierZ);
+  pier.add(gallery);
   const lampTop = new THREE.Mesh(
     new THREE.CylinderGeometry(1.4, 1.4, 2.4, 12),
     new THREE.MeshLambertMaterial({ color: 0x2a2e33, emissive: 0xffe9a8, emissiveIntensity: 0.8 }),
@@ -547,23 +628,86 @@ export function buildCity(scene, random) {
   };
 }
 
+// --- Palms: a bent, tapering frond geometry (shared by every palm) so the
+// crown reads as layered 3D leaves, not flat planes. The bend is baked into
+// the geometry: base at the origin, tip drooping toward -Z. ---
+let frondOuterGeo = null;
+let frondInnerGeo = null;
+let trunkTex = null;
+
+function bentFrondGeo(droop) {
+  const geo = new THREE.PlaneGeometry(0.95, 3.6, 1, 5);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i);
+    const v = (y + 1.8) / 3.6; // 0 at the base, 1 at the tip
+    pos.setZ(i, -droop * v * v * 3.6);
+    pos.setX(i, pos.getX(i) * (1 - v * 0.55)); // taper toward the tip
+  }
+  geo.computeVertexNormals();
+  geo.translate(0, 1.8, 0); // base at the origin
+  return geo;
+}
+
+function makeTrunkTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#8a6a48';
+  ctx.fillRect(0, 0, 64, 128);
+  for (let y = 0; y < 128; y += 10) {
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(0, y, 64, 3);
+  }
+  for (let i = 0; i < 6; i += 1) {
+    ctx.fillStyle = 'rgba(60,40,20,0.22)';
+    ctx.fillRect(8 + i * 9, 0, 2, 128);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function addPalm(group, x, z, scale, random) {
+  if (!frondOuterGeo) frondOuterGeo = bentFrondGeo(0.42);
+  if (!frondInnerGeo) frondInnerGeo = bentFrondGeo(0.22);
+  if (!trunkTex) trunkTex = makeTrunkTexture();
   const palm = new THREE.Group();
-  const trunkMat = new THREE.MeshLambertMaterial({ color: PALETTE.palmTrunk });
+  const trunkMat = new THREE.MeshLambertMaterial({ map: trunkTex });
   const leafMat = new THREE.MeshLambertMaterial({ color: PALETTE.palmLeaf, side: THREE.DoubleSide });
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * scale, 0.34 * scale, 6 * scale, 7), trunkMat);
+  const leafMat2 = new THREE.MeshLambertMaterial({ color: 0x4fa85e, side: THREE.DoubleSide });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.34 * scale, 6 * scale, 7), trunkMat);
   trunk.position.y = 3 * scale;
   trunk.rotation.z = range(random, -0.08, 0.08);
   trunk.castShadow = true;
   palm.add(trunk);
-  for (let i = 0; i < 6; i += 1) {
-    const frond = new THREE.Mesh(new THREE.PlaneGeometry(0.9 * scale, 3.4 * scale), leafMat);
-    const angle = (i / 6) * Math.PI * 2 + random() * 0.5;
-    frond.position.set(Math.cos(angle) * 1.3 * scale, 6.1 * scale, Math.sin(angle) * 1.3 * scale);
-    frond.rotation.set(Math.sin(angle) * 0.9, angle, Math.cos(angle) * 0.9);
-    frond.castShadow = true;
-    palm.add(frond);
+  const crownY = 6.05 * scale;
+  const tiers = [
+    { geo: frondOuterGeo, count: 7, tilt: -1.85, mat: leafMat, len: 1.0 },
+    { geo: frondInnerGeo, count: 5, tilt: -1.25, mat: leafMat2, len: 0.8 },
+  ];
+  for (const tier of tiers) {
+    for (let i = 0; i < tier.count; i += 1) {
+      const frond = new THREE.Mesh(tier.geo, tier.mat);
+      const angle = (i / tier.count) * Math.PI * 2 + random() * 0.6;
+      frond.rotation.order = 'YXZ';
+      frond.rotation.y = angle;
+      frond.rotation.x = tier.tilt + range(random, -0.08, 0.08);
+      frond.position.set(Math.cos(angle) * 0.5 * scale, crownY, Math.sin(angle) * 0.5 * scale);
+      frond.scale.setScalar(scale * tier.len * range(random, 0.9, 1.1));
+      frond.castShadow = true;
+      palm.add(frond);
+    }
   }
+  // Coconut cluster under the crown.
+  const nuts = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42 * scale, 8, 6),
+    new THREE.MeshLambertMaterial({ color: 0x6a4a2a }),
+  );
+  nuts.position.set(0, crownY - 0.35 * scale, 0);
+  nuts.scale.y = 0.8;
+  palm.add(nuts);
   palm.position.set(x, 0, z);
   group.add(palm);
   return palm;
