@@ -14,6 +14,10 @@
   .panel { position: absolute; background: rgba(10, 16, 26, .55); border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(2px); }
   #money-box { top: 14px; left: 14px; }
   #money { font-size: 28px; font-weight: 800; color: #7ee787; letter-spacing: .5px; }
+  #district { font-size: 13px; font-weight: 700; color: #f2c94c; letter-spacing: 1px; margin-top: 2px; }
+  #clock { font-size: 13px; color: #d5dce6; letter-spacing: 1px; }
+  #heat { font-size: 12px; color: #b8c0cc; letter-spacing: 1px; margin-top: 2px; }
+  #heat.hot { color: #ff5a4e; font-weight: 700; }
   #mission-box { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; max-width: 520px; }
   #mission-title { font-size: 17px; font-weight: 800; color: #f2c94c; }
   #mission-text { font-size: 14px; color: #eef1f5; margin-top: 2px; }
@@ -22,13 +26,18 @@
   #stars { font-size: 26px; letter-spacing: 3px; color: #8b93a3; }
   #stars.hot { color: #ffd23e; animation: pulse 0.8s infinite alternate; }
   @keyframes pulse { from { opacity: .75; } to { opacity: 1; } }
+  #radio { font-size: 12px; color: #b8c0cc; letter-spacing: 1px; }
   #health-box { left: 14px; bottom: 14px; width: 220px; }
   #health-bar { height: 12px; background: rgba(255,255,255,.18); border-radius: 6px; overflow: hidden; margin-top: 4px; }
   #health-fill { height: 100%; width: 100%; background: #3aa856; border-radius: 6px; transition: width .2s; }
   #health-label { font-size: 12px; letter-spacing: 1px; color: #b8c0cc; }
   #health-num { font-size: 13px; font-weight: 700; }
+  #ammo { font-size: 13px; font-weight: 700; color: #ffd27a; margin-top: 5px; }
+  #ammo.empty { color: #ff5a4e; }
   #speed { right: 14px; bottom: 14px; text-align: right; display: none; }
   #speed.show { display: block; }
+  #car-name { font-size: 14px; font-weight: 700; color: #fff; }
+  #car-gear { font-size: 13px; color: #b8c0cc; }
   #speed-val { font-size: 40px; font-weight: 800; line-height: 1; }
   #speed-unit { font-size: 13px; color: #b8c0cc; }
   #minimap-wrap { right: 14px; bottom: 96px; padding: 6px; }
@@ -42,6 +51,11 @@
   #toast.show { opacity: 1; }
   #hint { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); font-size: 15px; color: #fff; background: rgba(10,16,26,.6); padding: 6px 14px; border-radius: 20px; opacity: 0; transition: opacity .2s; }
   #hint.show { opacity: 1; }
+  #dialog { position: absolute; left: 50%; bottom: 25%; transform: translateX(-50%); width: 560px; max-width: 82vw; display: none; align-items: flex-start; gap: 12px; background: rgba(10,16,26,.85); border: 1px solid rgba(242,201,76,.4); border-radius: 12px; padding: 12px 16px; text-align: left; }
+  #dialog.show { display: flex; }
+  #dialog-portrait { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #fff; background: #7a4fc2; text-shadow: none; }
+  #dialog-name { font-size: 13px; font-weight: 800; color: #f2c94c; letter-spacing: 1px; }
+  #dialog-text { font-size: 16px; line-height: 1.45; color: #fff; margin-top: 2px; }
   .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: rgba(8, 12, 20, .45); color: #eef1f5; pointer-events: none; }
   .screen.show { display: flex; }
   .screen h1 { font-size: 64px; margin: 0; letter-spacing: 2px; color: #f2c94c; text-shadow: 0 4px 24px rgba(0,0,0,.8); }
@@ -49,7 +63,12 @@
   .screen p { font-size: 16px; color: #d5dce6; max-width: 560px; line-height: 1.5; }
   .screen .keys { font-size: 14px; color: #9fb0c3; margin-top: 14px; line-height: 1.9; }
   .screen .keys b { color: #fff; background: rgba(255,255,255,.12); padding: 1px 7px; border-radius: 5px; }
+  .screen .features { font-size: 15px; font-weight: 700; color: #f2c94c; letter-spacing: .5px; }
+  .screen .original { font-size: 13px; color: #9fb0c3; }
+  #passed-stars { font-size: 34px; color: #ffd23e; letter-spacing: 6px; margin: 6px 0; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+  #passed-dialog { font-style: italic; }
   #screen-busted h1 { color: #ff5a4e; }
+  #screen-passed h1 { color: #7ee787; }
   #screen-complete h1 { color: #7ee787; }
 </style>
 <script type="importmap">
@@ -60,23 +79,26 @@
 <canvas id="game" aria-label="Meridian Bay: an open-world crime game. Drive, steal cars, outrun the police and run the Meridian Job."></canvas>
 <p id="status" role="status" aria-live="polite"></p>
 <div id="hud">
-  <div class="panel" id="money-box"><div id="money">$250</div><div style="font-size:12px;color:#b8c0cc;letter-spacing:1px">MERIDIAN BAY</div></div>
+  <div class="panel" id="money-box"><div id="money">$250</div><div id="district">DOWNTOWN</div><div id="clock">DAY 1 18:24</div><div id="heat">HEAT ▯▯▯▯▯</div></div>
   <div class="panel" id="mission-box"><div id="mission-title">M1: First Wheels</div><div id="mission-text">Steal a car and drive to the Marina.</div><div id="mission-timer"></div></div>
-  <div class="panel" id="stars-box"><div id="stars">☆☆☆☆☆</div><div style="font-size:12px;color:#b8c0cc;letter-spacing:1px">WANTED</div></div>
-  <div class="panel" id="health-box"><span id="health-label">HEALTH</span> <span id="health-num">100</span><div id="health-bar"><div id="health-fill"></div></div></div>
-  <div class="panel" id="speed"><div id="speed-val">0</div><div id="speed-unit">km/h</div></div>
+  <div class="panel" id="stars-box"><div id="stars">☆☆☆☆☆</div><div style="font-size:12px;color:#b8c0cc;letter-spacing:1px">WANTED</div><div id="radio">MERIDIAN FM 98.1</div></div>
+  <div class="panel" id="health-box"><span id="health-label">HEALTH</span> <span id="health-num">100</span><div id="health-bar"><div id="health-fill"></div></div><div id="ammo">AMMO 12/12</div></div>
+  <div class="panel" id="speed"><div id="car-name"></div><div id="car-gear">GEAR 1</div><div id="speed-val">0</div><div id="speed-unit">km/h</div></div>
   <div class="panel" id="minimap-wrap"><canvas id="minimap" width="190" height="190"></canvas></div>
   <div id="crosshair"></div>
   <div id="toast"></div>
   <div id="hint"></div>
+  <div id="dialog"><div id="dialog-portrait">IK</div><div><div id="dialog-name">Inez Kade</div><div id="dialog-text"></div></div></div>
 </div>
 <div class="screen show" id="screen-title">
   <h1>MERIDIAN BAY</h1>
   <h2>An open-world crime story in a sun-soaked port city</h2>
-  <p>Vex Marlow is back in town with nothing but a debt and a fast mouth. Delia Voss has six jobs for you — steal, deliver, survive the heat, and pull the Meridian Job. The city is yours: on foot or behind the wheel.</p>
+  <p>Cassian Rowe is back in town with nothing but a $4,000 debt and a fast mouth. Fixer Inez Kade has six jobs for you — steal, deliver, survive the heat, and pull the Meridian Job. The city is yours: on foot or behind the wheel.</p>
+  <p class="features">6 story missions · taxi fares · 10 hidden packages · police chases · radio · saves</p>
   <p id="title-stats">A new story in Meridian Bay</p>
   <div class="keys"><b>W A S D</b> move &nbsp; <b>Shift</b> run &nbsp; <b>Space</b> jump / handbrake<br><b>E</b> steal / exit car &nbsp; <b>F</b> punch &nbsp; <b>Click</b> shoot &nbsp; <b>C</b> camera &nbsp; <b>P</b> pause &nbsp; <b>M</b> mute</div>
   <p>Press <b>Enter</b> or click to start</p>
+  <p class="original">An original game. Meridian Bay, Cassian Rowe, Inez Kade — no borrowed names, art or music.</p>
 </div>
 <div class="screen" id="screen-pause">
   <h1>PAUSED</h1>
@@ -88,11 +110,19 @@
   <h2>The Meridian Bay PD caught up with you.</h2>
   <p>Press <b>Enter</b> to get back out on the streets. Your money and mission progress are kept.</p>
 </div>
+<div class="screen" id="screen-passed">
+  <h1 id="passed-title">MISSION PASSED</h1>
+  <div id="passed-stars">★★★</div>
+  <p id="passed-stats"></p>
+  <p id="passed-dialog"></p>
+  <p id="passed-next"></p>
+  <p>Press <b>Enter</b> to continue</p>
+</div>
 <div class="screen" id="screen-complete">
   <h1>THE MERIDIAN JOB</h1>
   <h2>Story complete — the vault is empty and the boat is gone.</h2>
   <p id="complete-stats"></p>
-  <p>Free roam continues: find the hidden packages, run taxi fares, and see how rich Vex can get.</p>
+  <p>Free roam continues: find the hidden packages, run taxi fares, and see how rich Cassian can get.</p>
   <p>Press <b>Enter</b> to keep playing</p>
 </div>
 <script type="module" src="./src/main.js"></script>
