@@ -83,6 +83,30 @@ function facadeTexture(random, baseColor, floors, cols, shop) {
   return tex;
 }
 
+// A dark sign board with a gold word, drawn on a canvas — reused by the
+// pier stalls and by the freestanding landmark signs. The font shrinks to
+// fit long names instead of clipping them.
+function signTexture(word) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#22242a';
+  ctx.fillRect(0, 0, 512, 96);
+  ctx.fillStyle = '#ffd94c';
+  ctx.textAlign = 'center';
+  let size = 52;
+  ctx.font = `bold ${size}px system-ui, sans-serif`;
+  while (ctx.measureText(word).width > 480 && size > 18) {
+    size -= 2;
+    ctx.font = `bold ${size}px system-ui, sans-serif`;
+  }
+  ctx.fillText(word, 256, 66);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function box(w, h, d, color, x, y, z, material) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -532,21 +556,6 @@ export function buildCity(scene, random) {
     pier.add(rail);
   }
   // Stalls with a counter, serving window and a sign board, facing the walkway.
-  function signTexture(word) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#22242a';
-    ctx.fillRect(0, 0, 256, 64);
-    ctx.fillStyle = '#ffd94c';
-    ctx.font = 'bold 34px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(word, 128, 44);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
   function stall(x, z, color, word, flip) {
     const g = new THREE.Group();
     g.add(box(6, 3, 5, color, 0, 1.5, 0));
@@ -602,6 +611,34 @@ export function buildCity(scene, random) {
   pier.add(lampTop);
   group.add(pier);
   colliders.push({ minX: CITY.pierEndX - 8, maxX: CITY.pierEndX - 4, minZ: CITY.pierZ - 2, maxZ: CITY.pierZ + 2 });
+
+  // --- Landmark signs: named places on poles at intersection corners, so
+  // the city reads as a place with a bank, a motel, a casino, a garage, a
+  // club, a market and a pier — not an anonymous grid. Corners are always
+  // clear of buildings; the signs are double-sided and deterministic. ---
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x2a2e33 });
+  function landmark(word, x, z, yaw) {
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 2.25),
+      new THREE.MeshLambertMaterial({ map: signTexture(word), side: THREE.DoubleSide }),
+    );
+    sign.position.set(x, 7, z);
+    sign.rotation.y = yaw;
+    group.add(sign);
+    for (const off of [-5.4, 5.4]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 7, 6), postMat);
+      post.position.set(x + Math.cos(yaw) * off, 3.5, z - Math.sin(yaw) * off);
+      group.add(post);
+    }
+  }
+  landmark('MERIDIAN BANK', 11, 11, Math.PI / 4);
+  landmark('MARINA MOTEL', 229, 229, Math.PI / 4);
+  landmark('CASINO LUNA', -149, 149, Math.PI / 4);
+  landmark('PIER 40', 308, 30, Math.PI / 2);
+  landmark('DOCKSIDE GARAGE', -229, 91, Math.PI / 4);
+  landmark('CLUB VOLT', 91, -149, Math.PI / 4);
+  landmark('HARBOR MARKET', -229, -11, Math.PI / 4);
+  landmark('CALLE VERDE', 11, 171, Math.PI / 4);
 
   scene.add(group);
   return {
@@ -703,6 +740,22 @@ function addPalm(group, x, z, scale, random) {
 }
 
 // --- Collision and road helpers (shared by player, cars, peds, police). ---
+
+/** The named district under a world position — shown in the HUD and used
+ * by district heat. Order matters: the pier and beach win over the east
+ * strip, Calle Verde wins over the west strip. */
+export function districtAt(x, z) {
+  if (x > 320 && Math.abs(z - CITY.pierZ) < 24) return 'The Pier';
+  if (x > 280) return 'Beachfront';
+  if (x >= 160 && z > 120) return 'Marina';
+  if (x >= 200) return 'Coast Road';
+  if (x < -160 && z < -30) return 'Old Port';
+  if (z >= 160) return 'Calle Verde';
+  if (Math.abs(x) < 130 && Math.abs(z) < 130) return 'Downtown';
+  if (z < -160) return 'Northside';
+  if (x < -160) return 'The Docks';
+  return 'Midtown';
+}
 
 export function collideCircle(city, x, z, radius) {
   let px = x;

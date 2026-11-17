@@ -2,10 +2,14 @@
 // that rises with every crime the law sees, interceptors that spawn on the
 // roads and chase the player, foot officers when the player is on foot, and
 // a bust when a cop catches the player cold. Lay low and the heat fades.
+//
+// District heat: every crime also heats the district it happens in (0-5).
+// At 5 a district is in LOCKDOWN — shops shut, extra cruisers roll in —
+// and the heat only cools slowly, so a hot district stays hot.
 
 import * as THREE from 'three';
 import { WANTED } from './config.js';
-import { randomRoadPoint } from './city.js';
+import { districtAt, randomRoadPoint } from './city.js';
 import { range } from './random.js';
 
 function copMesh() {
@@ -46,12 +50,26 @@ export function createPolice(scene, city, vehicles, random) {
   };
   const cops = [];
   let policeCars = [];
+  const districtHeat = new Map();
+  let lastPos = null;
+
+  function heatFor(district) {
+    return districtHeat.get(district) || 0;
+  }
+
+  function setDistrictHeat(district, value) {
+    districtHeat.set(district, Math.max(0, Math.min(5, value)));
+  }
 
   function addHeat(amount) {
     if (state.busted) return;
     state.heat = Math.min(5, state.heat + amount);
     state.wanted = Math.ceil(state.heat);
     state.quietTimer = 0;
+    if (lastPos) {
+      const d = districtAt(lastPos.x, lastPos.z);
+      districtHeat.set(d, Math.min(5, heatFor(d) + amount));
+    }
   }
 
   function spawnPoliceCar(playerX, playerZ) {
@@ -67,7 +85,7 @@ export function createPolice(scene, city, vehicles, random) {
       }
     }
     const car = vehicles.addCar(x, z, 0, 0xf2f2f2, 'police');
-    car.chaseSpeed = 30 + state.wanted * 2.5;
+    car.chaseSpeed = 30 + state.wanted * 2.5 + (heatFor(districtAt(playerX, playerZ)) >= 5 ? 3 : 0);
     policeCars.push(car);
     return car;
   }
@@ -97,6 +115,11 @@ export function createPolice(scene, city, vehicles, random) {
 
   function update(dt, player, inCar, playerSpeed) {
     if (state.busted) return;
+    lastPos = { x: player.x, z: player.z };
+    // District heat cools slowly on its own — a hot district stays hot.
+    for (const [d, h] of districtHeat) {
+      if (h > 0) districtHeat.set(d, Math.max(0, h - dt * 0.02));
+    }
     // Heat fades only while quiet and no cop is close.
     let nearestCop = Infinity;
     for (const car of policeCars) {
@@ -175,6 +198,8 @@ export function createPolice(scene, city, vehicles, random) {
     state.quietTimer = 0;
     state.bustTimer = 0;
     state.busted = false;
+    districtHeat.clear();
+    lastPos = null;
     for (const car of policeCars) car.dead = true;
     policeCars = [];
     while (cops.length > 0) removeCop(cops[0]);
@@ -197,6 +222,8 @@ export function createPolice(scene, city, vehicles, random) {
       return cops;
     },
     addHeat,
+    heatFor,
+    setDistrictHeat,
     update,
     reset,
   };

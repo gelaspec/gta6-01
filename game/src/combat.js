@@ -43,6 +43,15 @@ export function createCombat(scene, city, random, effects, audio, onCrime) {
   const raycaster = new THREE.Raycaster();
   const targets = [];
   let fireCooldown = 0;
+  // The pistol carries 12 rounds and loads one back every 2.5 s — the HUD
+  // shows AMMO, and an empty gun clicks instead of firing.
+  const AMMO_MAX = 12;
+  let ammo = AMMO_MAX;
+  let regenTimer = 0;
+
+  function setAmmo(value) {
+    ammo = Math.max(0, Math.min(AMMO_MAX, value));
+  }
 
   function spawnEnemy(x, z, kind) {
     const { group, legL, legR, armR } = enemyMesh(random);
@@ -69,7 +78,13 @@ export function createCombat(scene, city, random, effects, audio, onCrime) {
   /** Fire the pistol from `camera` toward the crosshair. Returns what was hit. */
   function shoot(camera, playerPos) {
     if (fireCooldown > 0) return null;
+    if (ammo <= 0) {
+      audio.denied();
+      return { type: 'empty' };
+    }
     fireCooldown = 0.28;
+    ammo -= 1;
+    regenTimer = 0;
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     raycaster.far = 120;
     targets.length = 0;
@@ -146,6 +161,13 @@ export function createCombat(scene, city, random, effects, audio, onCrime) {
 
   function update(dt, playerPos, player) {
     if (fireCooldown > 0) fireCooldown -= dt;
+    if (ammo < AMMO_MAX) {
+      regenTimer += dt;
+      if (regenTimer >= 2.5) {
+        ammo += 1;
+        regenTimer = 0;
+      }
+    }
     for (const e of enemies) {
       if (e.dead) continue;
       const dx = playerPos.x - e.x;
@@ -185,5 +207,13 @@ export function createCombat(scene, city, random, effects, audio, onCrime) {
     }
   }
 
-  return { enemies, spawnEnemy, clearEnemies, shoot, punch, update };
+  return {
+    enemies, spawnEnemy, clearEnemies, shoot, punch, update, setAmmo,
+    get ammo() {
+      return ammo;
+    },
+    get ammoMax() {
+      return AMMO_MAX;
+    },
+  };
 }

@@ -1,4 +1,4 @@
-// Vex Marlow on foot: a low-poly figure with a walk/run cycle, jump and
+// Cassian Rowe on foot: a low-poly figure with a walk/run cycle, jump and
 // punch, moved by the camera-relative WASD input and kept out of buildings
 // by the city's collision boxes. Health, damage and the "busted" state live
 // here; money and missions live in the game state.

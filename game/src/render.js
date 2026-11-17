@@ -110,6 +110,43 @@ export function createRenderer(canvas) {
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 2200);
   camera.position.set(0, 12, 24);
 
+  // --- Time of day: the sky dome, sun, lights and fog are all re-aimed
+  // per preset, so each screenshot can have its own sky — sunset chase,
+  // neon night, bright day, dusk over the beach — from the same city. ---
+  const TIME_OF_DAY = {
+    sunset: { top: 0x4f9fe8, mid: 0x9fd4f2, horizon: 0xffd9a0, sunDir: [280, 420, 160], sunColor: 0xffe9b8, disc: 0xfff6d8, halo: 0xffe9b8, haloOpacity: 0.22, sun: 0xffe2ac, sunIntensity: 2.3, hemi: 1.45, fill: 1.0, bounce: 0.35, fog: 0xe3c69c, exposure: 1.12, clouds: 0.88 },
+    day: { top: 0x2f7fd0, mid: 0x7fc4ee, horizon: 0xcfe8f5, sunDir: [120, 600, 60], sunColor: 0xfff8e0, disc: 0xffffff, halo: 0xfff8e0, haloOpacity: 0.15, sun: 0xfff2d0, sunIntensity: 2.6, hemi: 1.7, fill: 0.8, bounce: 0.3, fog: 0xcfe0ea, exposure: 1.05, clouds: 0.95 },
+    dusk: { top: 0x3a3a7a, mid: 0x8a5a9a, horizon: 0xff9a5c, sunDir: [-420, 110, 180], sunColor: 0xffb060, disc: 0xffd0a0, halo: 0xff9a5c, haloOpacity: 0.3, sun: 0xffb070, sunIntensity: 1.8, hemi: 1.0, fill: 0.7, bounce: 0.25, fog: 0xd8a080, exposure: 1.05, clouds: 0.7 },
+    night: { top: 0x060a1a, mid: 0x0e1a3a, horizon: 0x24355e, sunDir: [-200, 520, -120], sunColor: 0x8aa8ff, disc: 0xdde8ff, halo: 0x8aa8ff, haloOpacity: 0.12, sun: 0x9ab0e0, sunIntensity: 0.9, hemi: 0.55, fill: 0.5, bounce: 0.15, fog: 0x0a1220, exposure: 1.0, clouds: 0.35 },
+  };
+  const sunDirVec = new THREE.Vector3();
+  function setTimeOfDay(name) {
+    const p = TIME_OF_DAY[name] || TIME_OF_DAY.sunset;
+    skyMat.uniforms.top.value.setHex(p.top);
+    skyMat.uniforms.mid.value.setHex(p.mid);
+    skyMat.uniforms.horizon.value.setHex(p.horizon);
+    skyMat.uniforms.sunColor.value.setHex(p.sunColor);
+    sunDirVec.set(p.sunDir[0], p.sunDir[1], p.sunDir[2]).normalize();
+    skyMat.uniforms.sunDir.value.copy(sunDirVec);
+    sunDisc.position.copy(sunDirVec).multiplyScalar(1350);
+    sunDisc.lookAt(0, 0, 0);
+    sunHalo.position.copy(sunDirVec).multiplyScalar(1340);
+    sunHalo.lookAt(0, 0, 0);
+    sunDisc.material.color.setHex(p.disc);
+    sunHalo.material.color.setHex(p.halo);
+    sunHalo.material.opacity = p.haloOpacity;
+    sun.color.setHex(p.sun);
+    sun.intensity = p.sunIntensity;
+    sun.position.set(p.sunDir[0], p.sunDir[1], p.sunDir[2]);
+    hemi.intensity = p.hemi;
+    fill.intensity = p.fill;
+    bounce.intensity = p.bounce;
+    cloudMat.opacity = p.clouds;
+    scene.fog.color.setHex(p.fog);
+    scene.background.setHex(p.top);
+    renderer.toneMappingExposure = p.exposure;
+  }
+
   let shakeAmount = 0;
   const camPos = new THREE.Vector3(0, 12, 24);
   const lookAt = new THREE.Vector3(0, 1, 0);
@@ -129,6 +166,7 @@ export function createRenderer(canvas) {
     renderer,
     scene,
     camera,
+    setTimeOfDay,
     shake(amount) {
       shakeAmount = Math.max(shakeAmount, amount);
     },

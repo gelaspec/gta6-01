@@ -4,7 +4,7 @@
 // wheels and headlights; police cars add a flashing light bar.
 
 import * as THREE from 'three';
-import { CAR, CITY, PALETTE, PARKED_COUNT, TRAFFIC_COUNT } from './config.js';
+import { CAR, CAR_NAMES, CITY, PALETTE, PARKED_COUNT, TRAFFIC_COUNT } from './config.js';
 import { clampToCity, collideCircle, nearestRoad, randomRoadPoint } from './city.js';
 import { chance, pick, range } from './random.js';
 
@@ -78,6 +78,7 @@ export function createVehicles(scene, city, random) {
       speed: 0,
       steer: 0,
       color,
+      name: isPolice ? 'MBPD Interceptor' : pick(random, CAR_NAMES),
       kind, // 'player' | 'traffic' | 'parked' | 'police' | 'van'
       target: null, // traffic/police waypoint {x,z}
       routeAxis: null,

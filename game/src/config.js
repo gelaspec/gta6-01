@@ -53,13 +53,23 @@ export const WANTED = {
   maxPoliceCars: 4,
 };
 
+export const PROTAGONIST = 'Cassian Rowe';
+export const FIXER = 'Inez Kade';
+
+export const CAR_NAMES = [
+  'Comet GT', 'Marlin Coupe', 'Pelican Van', 'Bay Runner',
+  'Dune GT', 'Harbor Hauler', 'Sunset Cruiser', 'Pier Runner',
+];
+
+export const RADIO_STATIONS = ['MERIDIAN FM 98.1', 'BAYWAVE 104.5', 'NEON NIGHTS 91.3'];
+
 export const MISSIONS = [
-  { id: 1, title: 'First Wheels', giver: 'Delia Voss', reward: 500 },
-  { id: 2, title: 'Courier Run', giver: 'Delia Voss', reward: 800 },
-  { id: 3, title: 'The Pickup', giver: 'Delia Voss', reward: 1000 },
-  { id: 4, title: 'Heat', giver: 'Delia Voss', reward: 1500 },
-  { id: 5, title: 'Pier Heist', giver: 'Delia Voss', reward: 2500 },
-  { id: 6, title: 'The Meridian Job', giver: 'Delia Voss', reward: 10000 },
+  { id: 1, title: 'First Wheels', giver: 'Inez Kade', reward: 500 },
+  { id: 2, title: 'Courier Run', giver: 'Inez Kade', reward: 800 },
+  { id: 3, title: 'The Pickup', giver: 'Inez Kade', reward: 1000 },
+  { id: 4, title: 'Heat', giver: 'Inez Kade', reward: 1500 },
+  { id: 5, title: 'Pier Heist', giver: 'Inez Kade', reward: 2500 },
+  { id: 6, title: 'The Meridian Job', giver: 'Inez Kade', reward: 10000 },
 ];
 
 export const PACKAGE_COUNT = 10;
