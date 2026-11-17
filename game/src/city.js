@@ -531,20 +531,7 @@ export function buildCity(scene, random) {
     rail.position.set((CITY.beachX + CITY.pierEndX) / 2, 1.9, CITY.pierZ + side);
     pier.add(rail);
   }
-  // Stalls with a striped awning and a sign board, facing the walkway.
-  function awningTexture(color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-    for (let s = 0; s < 8; s += 1) {
-      ctx.fillStyle = s % 2 ? '#f2ede2' : color;
-      ctx.fillRect(s * 16, 0, 16, 32);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
+  // Stalls with a counter, serving window and a sign board, facing the walkway.
   function signTexture(word) {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -563,17 +550,11 @@ export function buildCity(scene, random) {
   function stall(x, z, color, word, flip) {
     const g = new THREE.Group();
     g.add(box(6, 3, 5, color, 0, 1.5, 0));
-    // Counter and a dark serving window on the front face.
+    // Counter and a dark serving window on the front face, plus a sign board
+    // with the stall's word. (No protruding awning: from the pier camera the
+    // stalls are seen side-on, and an awning reads as a white sail.)
     g.add(box(5.5, 1.0, 0.8, 0x7a5a3a, 0, 0.55, 2.6));
     g.add(box(5, 0.9, 0.1, 0x2a3440, 0, 1.5, 2.56));
-    // Striped awning sloping down from the top of the front face.
-    const awn = new THREE.Mesh(
-      new THREE.PlaneGeometry(6.4, 1.4),
-      new THREE.MeshLambertMaterial({ map: awningTexture(color), side: THREE.DoubleSide }),
-    );
-    awn.position.set(0, 2.6, 3.5);
-    awn.rotation.x = -1.2;
-    g.add(awn);
     const sign = new THREE.Mesh(
       new THREE.PlaneGeometry(4.4, 0.8),
       new THREE.MeshLambertMaterial({ map: signTexture(word) }),
