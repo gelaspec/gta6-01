@@ -226,7 +226,7 @@ export function buildCity(scene, random) {
   // Zebra crossings at every intersection: one on each approach, offset from
   // the centre so the four crossings read as a real junction, not a white
   // block.
-  const zebraMat = new THREE.MeshLambertMaterial({ map: zebraTexture(), transparent: true });
+  const zebraMat = new THREE.MeshLambertMaterial({ map: zebraTexture(), transparent: true, opacity: 0.8 });
   for (const r1 of roads) {
     for (const r2 of roads) {
       for (const off of [-14, 14]) {

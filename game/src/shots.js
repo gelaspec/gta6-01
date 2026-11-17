@@ -144,7 +144,7 @@ export function stageShot(name, world) {
     simulate(world, 0.6, () => ({ x: 0, z: 0, run: false, jump: false }));
     // The walk into the bank trips the hold phase: heat, gang, alarm.
     simulate(world, 3.5, () => ({ x: 0, z: 0, run: false, jump: false }));
-    framePlayer(world, Math.PI * 0.75, 9, 3.6);
+    framePlayer(world, Math.PI * 0.75, 11, 4.8);
   } else {
     // Unknown shot name: the title view of the city.
     world.missions.setMission(0);
