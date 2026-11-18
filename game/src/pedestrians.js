@@ -2,6 +2,11 @@
 // intersections, cross at corners, and run when a gun goes off, a car bears
 // down on them or a punch lands. They are the city's life — and what makes
 // a hit-and-run a crime the police answer.
+//
+// v2: no two walkers read the same. Height, build, skin, shirt and pants
+// vary per pedestrian, a third wear hats, a quarter carry bags, and everyone
+// has shoes — so a sidewalk crowd reads as people, not clones. The walk
+// cycle, flee behaviour and knock-down pose are unchanged.
 
 import * as THREE from 'three';
 import { CITY, PED_COUNT } from './config.js';
@@ -9,13 +14,19 @@ import { clampToCity, nearestRoad } from './city.js';
 import { chance, pick, range } from './random.js';
 
 const SHIRTS = [0xd84a4a, 0x4a7ad8, 0x4ad88a, 0xd8c84a, 0xd84ab8, 0x8a6ad8, 0xe8e8e8, 0x3a3a3a];
+const SKINS = [0xd8a075, 0xa8764e, 0x8a5a38, 0xe8b890];
+const PANTS = [0x2a3440, 0x4a3a2a, 0x5a5a5a, 0x2a4a5a];
+const HATS = [0xc23b2e, 0x2e6fc2, 0xe8c832, 0x3a3a3a, 0xe8e8e8];
 
 function pedMesh(shirtColor, pantsColor, random) {
   const group = new THREE.Group();
   const shirt = new THREE.MeshLambertMaterial({ color: shirtColor });
   const pants = new THREE.MeshLambertMaterial({ color: pantsColor });
-  const skin = new THREE.MeshLambertMaterial({ color: pick(random, [0xd8a075, 0xa8764e, 0x8a5a38, 0xe8b890]) });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.62, 0.3), shirt);
+  const skin = new THREE.MeshLambertMaterial({ color: pick(random, SKINS) });
+  // Build: wide or narrow shoulders, tall or short — the torso sets the rest.
+  const build = range(random, 0.9, 1.28);
+  const height = range(random, 0.92, 1.08);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55 * build, 0.62, 0.3), shirt);
   torso.position.y = 1.02;
   torso.castShadow = true;
   group.add(torso);
@@ -23,19 +34,66 @@ function pedMesh(shirtColor, pantsColor, random) {
   head.position.y = 1.55;
   head.castShadow = true;
   group.add(head);
+  // Hair: a cap of darker geometry over the top of the head.
+  const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2.4),
+    new THREE.MeshLambertMaterial({ color: pick(random, [0x2a2018, 0x4a3a2a, 0x1a1a1a, 0x6a5a3a]) }),
+  );
+  hair.position.y = 1.57;
+  group.add(hair);
   const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), pants);
   legL.position.set(-0.14, 0.31, 0);
   group.add(legL);
   const legR = legL.clone();
   legR.position.x = 0.14;
   group.add(legR);
+  const armX = 0.28 * build + 0.08;
   const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.55, 0.17), shirt);
-  armL.position.set(-0.36, 1.02, 0);
+  armL.position.set(-armX, 1.02, 0);
   group.add(armL);
   const armR = armL.clone();
-  armR.position.x = 0.36;
+  armR.position.x = armX;
   group.add(armR);
-  return { group, legL, legR, armL, armR };
+  // Shoes ride on the legs, so they swing with the stride instead of
+  // floating when a leg lifts.
+  const shoeMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  for (const leg of [legL, legR]) {
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.3), shoeMat);
+    shoe.position.set(0, -0.265, 0.05);
+    leg.add(shoe);
+  }
+  // Hats: a third of walkers wear one — a cap or a wide-brim sun hat.
+  if (chance(random, 0.32)) {
+    const hatMat = new THREE.MeshLambertMaterial({ color: pick(random, HATS) });
+    if (chance(random, 0.5)) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.23, 0.09, 10), hatMat);
+      cap.position.y = 1.74;
+      group.add(cap);
+      const brim = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.16), hatMat);
+      brim.position.set(0, 1.71, 0.22);
+      group.add(brim);
+    } else {
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.05, 12), hatMat);
+      brim.position.y = 1.72;
+      group.add(brim);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.12, 10), hatMat);
+      crown.position.y = 1.79;
+      group.add(crown);
+    }
+  }
+  // Bags: a quarter carry one on a shoulder, swaying with the walk.
+  let bag = null;
+  if (chance(random, 0.25)) {
+    bag = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.3, 0.1),
+      new THREE.MeshLambertMaterial({ color: pick(random, [0x6a4a2a, 0x2a2a2a, 0x8a2a2a, 0x2a4a6a]) }),
+    );
+    const side = chance(random, 0.5) ? 1 : -1;
+    bag.position.set(side * (0.28 * build + 0.1), 0.82, 0);
+    group.add(bag);
+  }
+  group.scale.y = height;
+  return { group, legL, legR, armL, armR, bag };
 }
 
 export function createPedestrians(scene, city, random) {
@@ -51,15 +109,15 @@ export function createPedestrians(scene, city, random) {
 
   function spawnOne(x, z) {
     const p = x === undefined ? sidewalkPoint() : { x, z };
-    const { group, legL, legR, armL, armR } = pedMesh(
+    const { group, legL, legR, armL, armR, bag } = pedMesh(
       pick(random, SHIRTS),
-      pick(random, [0x2a3440, 0x4a3a2a, 0x5a5a5a, 0x2a4a5a]),
+      pick(random, PANTS),
       random,
     );
     group.position.set(p.x, 0, p.z);
     scene.add(group);
     const ped = {
-      group, legL, legR, armL, armR,
+      group, legL, legR, armL, armR, bag,
       x: p.x, z: p.z, yaw: random() * Math.PI * 2,
       speed: range(random, 1.1, 2.0),
       target: null,
@@ -144,6 +202,7 @@ export function createPedestrians(scene, city, random) {
       ped.legR.rotation.x = -swing;
       ped.armL.rotation.x = -swing * 0.7;
       ped.armR.rotation.x = swing * 0.7;
+      if (ped.bag) ped.bag.rotation.x = Math.sin(ped.phase) * 0.25;
       ped.group.position.set(ped.x, 0, ped.z);
       ped.group.rotation.y = ped.yaw;
     }

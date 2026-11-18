@@ -6,13 +6,13 @@
 import * as THREE from 'three';
 import { PALETTE } from './config.js';
 import { collideCircle } from './city.js';
-import { range } from './random.js';
+import { chance, pick, range } from './random.js';
 
 function enemyMesh(random) {
   const group = new THREE.Group();
   const shirt = new THREE.MeshLambertMaterial({ color: PALETTE.gangShirt });
   const pants = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-  const skin = new THREE.MeshLambertMaterial({ color: 0xd8a075 });
+  const skin = new THREE.MeshLambertMaterial({ color: pick(random, [0xd8a075, 0xa8764e, 0x8a5a38, 0xe8b890]) });
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), shirt);
   torso.position.y = 1.08;
   torso.castShadow = true;
@@ -24,6 +24,22 @@ function enemyMesh(random) {
   head.position.y = 1.68;
   head.castShadow = true;
   group.add(head);
+  // Gang colours on the head: a red bandana or a dark cap, never the same twice.
+  if (chance(random, 0.4)) {
+    const bandana = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.1, 0.5),
+      new THREE.MeshLambertMaterial({ color: 0x8a1a1a }),
+    );
+    bandana.position.y = 1.78;
+    group.add(bandana);
+  } else if (chance(random, 0.4)) {
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.25, 0.1, 10),
+      new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+    );
+    cap.position.y = 1.86;
+    group.add(cap);
+  }
   const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.72, 0.24), pants);
   legL.position.set(-0.16, 0.36, 0);
   group.add(legL);
@@ -34,11 +50,8 @@ function enemyMesh(random) {
   armR.position.set(0.42, 1.15, 0.2);
   armR.rotation.x = -1.2;
   group.add(armR);
-  void random;
   return { group, legL, legR, armR };
-}
-
-export function createCombat(scene, city, random, effects, audio, onCrime) {
+}export function createCombat(scene, city, random, effects, audio, onCrime) {
   const enemies = [];
   const raycaster = new THREE.Raycaster();
   const targets = [];

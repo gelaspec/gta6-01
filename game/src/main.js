@@ -110,6 +110,7 @@ function startGame() {
   screen = 'play';
   hud.showScreen('play');
   audio.ensure();
+  audio.start();
   announce(`Playing. ${PROTAGONIST}, Meridian Bay.`);
   missions.showBriefing();
 }
@@ -308,7 +309,7 @@ function stepGame(dt, inp) {
   const speedNow = inCar ? Math.abs(car.speed) : player.speed;
   police.update(dt, effectivePos(), inCar, speedNow);
   // Police radio: the dispatch calls the chase as the stars climb.
-  if (police.wanted > lastWanted && police.wanted >= 2) {
+  if (police.wanted > lastWanted && police.wanted >= 1) {
     dialog.show('MBPD DISPATCH', DIALOG_LINES.dispatch[police.wanted] || DIALOG_LINES.dispatch[2]);
   }
   lastWanted = police.wanted;
@@ -357,6 +358,7 @@ function stepGame(dt, inp) {
       ammo: combat.ammo,
       ammoMax: combat.ammoMax,
       carName: inCar ? car.name : '',
+      carClass: inCar ? car.clsLabel : '',
       gear: inCar ? (car.speed < -0.5 ? 'R' : 1 + Math.min(4, Math.floor(Math.abs(car.speed) / 9))) : 1,
       clock: `DAY ${clockDay} ${String(Math.floor(clockMin / 60)).padStart(2, '0')}:${String(Math.floor(clockMin % 60)).padStart(2, '0')}`,
       district,

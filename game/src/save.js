@@ -10,7 +10,9 @@ export function loadSave() {
     const data = JSON.parse(raw);
     return {
       money: typeof data.money === 'number' ? data.money : 250,
-      mission: typeof data.mission === 'number' ? data.mission : 0,
+      // Clamp the mission: a corrupt or hand-edited save can never jump
+      // past the story (0-6) or into a negative mission.
+      mission: typeof data.mission === 'number' ? Math.max(0, Math.min(6, Math.floor(data.mission))) : 0,
       packages: Array.isArray(data.packages) ? data.packages : [],
     };
   } catch {

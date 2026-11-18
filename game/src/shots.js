@@ -39,10 +39,13 @@ function simulate(world, seconds, inputFn) {
   }
 }
 
-function enterNearestCar(world, x, z, yaw) {
-  let car = world.vehicles.nearestStealable(x, z, 60);
+function enterNearestCar(world, x, z, yaw, cls) {
+  // With a class asked for, place a fresh car of that class: the chase shot
+  // always runs in a sports car, never whatever happened to be parked near.
+  let car = null;
+  if (!cls) car = world.vehicles.nearestStealable(x, z, 60);
   if (!car) {
-    car = world.vehicles.addCar(x, z, yaw || 0, 0xc23b2e, 'parked');
+    car = world.vehicles.addCar(x, z, yaw || 0, 0xc23b2e, 'parked', cls);
   }
   world.player.teleport(car.x, car.z + 2, car.yaw);
   world.vehicles.enterCar(car);
@@ -53,7 +56,7 @@ function enterNearestCar(world, x, z, yaw) {
  * is busy. Route fields are set so the cars drive on during the simulate. */
 function stageTraffic(world, list) {
   for (const t of list) {
-    const car = world.vehicles.addCar(t.x, t.z, t.yaw, t.color, 'traffic');
+    const car = world.vehicles.addCar(t.x, t.z, t.yaw, t.color, 'traffic', t.cls);
     car.speed = t.speed || 9;
     car.routeAxis = t.axis;
     car.routeValue = t.value;
@@ -136,7 +139,7 @@ export function stageShot(name, world) {
     world.police.addHeat(3);
     world.police.setDistrictHeat('Coast Road', 3);
     world.player.teleport(238, 140, Math.PI);
-    enterNearestCar(world, 238, 140);
+    enterNearestCar(world, 238, 140, Math.PI, 'sports');
     const car = world.vehicles.playerCar;
     car.x = 240;
     car.z = 140;
@@ -168,10 +171,10 @@ export function stageShot(name, world) {
     // on the sidewalks, in frame. Cars ahead of the chase sit behind the
     // reverse camera and would be invisible — they go here instead.
     stageTraffic(world, [
-      { x: 233, z: 100, yaw: 0, color: 0x3aa856, axis: 'x', value: 240, dir: 1, speed: 8 },
-      { x: 247, z: 150, yaw: Math.PI, color: 0x2e6fc2, axis: 'x', value: 240, dir: -1, speed: 9 },
-      { x: 120, z: 80, yaw: Math.PI / 2, color: 0xeeeeee, axis: 'z', value: 80, dir: 1, speed: 9 },
-      { x: 200, z: 80, yaw: -Math.PI / 2, color: 0xe87a2e, axis: 'z', value: 80, dir: -1, speed: 8 },
+      { x: 233, z: 100, yaw: 0, color: 0x3aa856, cls: 'sedan', axis: 'x', value: 240, dir: 1, speed: 8 },
+      { x: 247, z: 150, yaw: Math.PI, color: 0xe8c832, cls: 'taxi', axis: 'x', value: 240, dir: -1, speed: 9 },
+      { x: 120, z: 80, yaw: Math.PI / 2, color: 0xeeeeee, cls: 'van', axis: 'z', value: 80, dir: 1, speed: 9 },
+      { x: 200, z: 80, yaw: -Math.PI / 2, color: 0xe87a2e, cls: 'sports', axis: 'z', value: 80, dir: -1, speed: 8 },
     ]);
     stagePeds(world, [[228, 30], [252, 55], [228, 95], [252, 125], [228, 140]]);
     world.dialog.show('MBPD DISPATCH', DIALOG_LINES.dispatch[3], { sticky: true });
@@ -192,8 +195,8 @@ export function stageShot(name, world) {
     simulate(world, 3.5, () => ({ x: 0, z: 0, run: false, jump: false }));
     world.police.setDistrictHeat('Downtown', 4);
     stageTraffic(world, [
-      { x: 0, z: -60, yaw: Math.PI / 2, color: 0x2e6fc2, axis: 'z', value: 0, dir: 1, speed: 9 },
-      { x: -80, z: 30, yaw: Math.PI, color: 0xe8c832, axis: 'x', value: -80, dir: -1, speed: 8 },
+      { x: 0, z: -60, yaw: Math.PI / 2, color: 0x2e6fc2, cls: 'suv', axis: 'z', value: 0, dir: 1, speed: 9 },
+      { x: -80, z: 30, yaw: Math.PI, color: 0xe8c832, cls: 'taxi', axis: 'x', value: -80, dir: -1, speed: 8 },
     ]);
     stagePeds(world, [[-24, 12], [18, -14], [10, 26], [-30, -22], [26, 18]]);
     world.dialog.show('Inez Kade', DIALOG_LINES.mid['m5-alarm'], { sticky: true });

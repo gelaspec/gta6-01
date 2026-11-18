@@ -133,6 +133,10 @@ export function createAudio() {
 
   return {
     ensure,
+    start() {
+      // Engine rev as the game starts: a rising sawtooth blip.
+      blip(60, 180, 0.4, 'sawtooth', 0.12);
+    },
     get muted() {
       return muted;
     },

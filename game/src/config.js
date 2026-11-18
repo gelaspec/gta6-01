@@ -56,10 +56,28 @@ export const WANTED = {
 export const PROTAGONIST = 'Cassian Rowe';
 export const FIXER = 'Inez Kade';
 
-export const CAR_NAMES = [
-  'Comet GT', 'Marlin Coupe', 'Pelican Van', 'Bay Runner',
-  'Dune GT', 'Harbor Hauler', 'Sunset Cruiser', 'Pier Runner',
+// Vehicle classes: every car on the street is one of these, with its own
+// silhouette, name and HUD label — a sedan does not read as a van, a taxi
+// does not read as a cop car. Weights are the traffic mix (sedans common,
+// sports cars rare); police is never picked for traffic, only spawned.
+export const CAR_CLASSES = ['sedan', 'coupe', 'suv', 'van', 'taxi', 'sports'];
+export const CAR_CLASS_WEIGHTS = [
+  [0.32, 'sedan'], [0.16, 'coupe'], [0.16, 'suv'],
+  [0.12, 'van'], [0.10, 'taxi'], [0.14, 'sports'],
 ];
+export const CAR_CLASS_LABEL = {
+  sedan: 'SEDAN', coupe: 'COUPE', suv: 'SUV', van: 'VAN',
+  taxi: 'TAXI', sports: 'SPORTS', police: 'MBPD',
+};
+export const CAR_NAMES_BY_CLASS = {
+  sedan: ['Sunset Cruiser', 'Bay Runner', 'Marlin Sedan', 'Coast Sedan'],
+  coupe: ['Marlin Coupe', 'Dune GT', 'Comet Coupe'],
+  suv: ['Harbor Hauler', 'Dune Runner', 'Pier Runner'],
+  van: ['Pelican Van', 'Dockside Van', 'Harbor Van'],
+  taxi: ['Meridian Cab', 'Bay Cab', 'Coast Taxi'],
+  sports: ['Comet GT', 'Dune GT', 'Sunset GT'],
+  police: ['MBPD Interceptor'],
+};
 
 export const RADIO_STATIONS = ['MERIDIAN FM 98.1', 'BAYWAVE 104.5', 'NEON NIGHTS 91.3'];
 

@@ -18,6 +18,16 @@ export function createPlayer(scene) {
   torso.position.y = 1.08;
   torso.castShadow = true;
   group.add(torso);
+  // Open dark vest over the teal shirt, a belt, and shoes — Cassian reads
+  // as a person with a style, not a shirt-coloured block.
+  const vestMat = new THREE.MeshLambertMaterial({ color: 0x1e242e });
+  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.5, 0.38), vestMat);
+  vest.position.y = 1.14;
+  vest.castShadow = true;
+  group.add(vest);
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.36), new THREE.MeshLambertMaterial({ color: 0x14161a }));
+  belt.position.y = 0.74;
+  group.add(belt);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), skin);
   head.position.y = 1.68;
   head.castShadow = true;
@@ -32,6 +42,14 @@ export function createPlayer(scene) {
   const legR = legL.clone();
   legR.position.x = 0.16;
   group.add(legR);
+  // Shoes ride on the legs, so they swing with the stride instead of
+  // floating when a leg lifts.
+  const shoeMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  for (const leg of [legL, legR]) {
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.09, 0.32), shoeMat);
+    shoe.position.set(0, -0.315, 0.05);
+    leg.add(shoe);
+  }
   const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.2), shirt);
   armL.position.set(-0.42, 1.08, 0);
   armL.castShadow = true;

@@ -27,3 +27,15 @@ export function pick(random, list) {
 export function chance(random, p) {
   return random() < p;
 }
+
+export function weighted(random, entries) {
+  // entries: [[weight, value], ...] — pick a value in proportion to its weight.
+  let total = 0;
+  for (const [w] of entries) total += w;
+  let roll = random() * total;
+  for (const [w, value] of entries) {
+    roll -= w;
+    if (roll <= 0) return value;
+  }
+  return entries[entries.length - 1][1];
+}

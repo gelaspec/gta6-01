@@ -37,7 +37,14 @@ function copMesh() {
   const legR = legL.clone();
   legR.position.x = 0.15;
   group.add(legR);
-  return { group, legL, legR };
+  // Arms, swinging with the stride like the pedestrians'.
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.55, 0.17), navy);
+  armL.position.set(-0.38, 1.05, 0);
+  group.add(armL);
+  const armR = armL.clone();
+  armR.position.x = 0.38;
+  group.add(armR);
+  return { group, legL, legR, armL, armR };
 }
 
 export function createPolice(scene, city, vehicles, random) {
@@ -92,12 +99,12 @@ export function createPolice(scene, city, vehicles, random) {
 
   function spawnFootCop(playerX, playerZ) {
     const p = randomRoadPoint(city, random);
-    const { group, legL, legR } = copMesh();
+    const { group, legL, legR, armL, armR } = copMesh();
     const x = p.x + range(random, -10, 10);
     const z = p.z + range(random, -10, 10);
     group.position.set(x, 0, z);
     scene.add(group);
-    const cop = { group, legL, legR, x, z, yaw: 0, phase: random() * 10 };
+    const cop = { group, legL, legR, armL, armR, x, z, yaw: 0, phase: random() * 10 };
     cops.push(cop);
     return cop;
   }
@@ -183,6 +190,8 @@ export function createPolice(scene, city, vehicles, random) {
       cop.phase += dt * 14;
       cop.legL.rotation.x = Math.sin(cop.phase) * 0.7;
       cop.legR.rotation.x = -Math.sin(cop.phase) * 0.7;
+      cop.armL.rotation.x = -Math.sin(cop.phase) * 0.55;
+      cop.armR.rotation.x = Math.sin(cop.phase) * 0.55;
       cop.group.position.set(cop.x, 0, cop.z);
       cop.group.rotation.y = cop.yaw;
       if (d < 1.7) {

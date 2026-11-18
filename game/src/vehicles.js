@@ -1,51 +1,142 @@
 // Cars: one arcade physics model for every car in Meridian Bay — the
 // player's car, the traffic that loops the road grid, the parked cars waiting
-// to be stolen, and the police interceptors. A car is a body, a cabin, four
-// wheels and headlights; police cars add a flashing light bar.
+// to be stolen, and the police interceptors.
+//
+// v2: every car is one of seven classes (sedan, coupe, SUV, van, taxi,
+// sports, police), each with its own silhouette — body and cabin proportions,
+// wheels, glass, lights, bumpers and class extras (taxi sign, spoiler, roof
+// rails, push bar) — so a chase reads at a glance: which car is the runner,
+// which is a cab, which is the law. The footprint stays 2.0 x 4.4 m for
+// every class, so the collision radius, steering and traffic AI are exactly
+// the v1 ones; only the model changes.
 
 import * as THREE from 'three';
-import { CAR, CAR_NAMES, CITY, PALETTE, PARKED_COUNT, TRAFFIC_COUNT } from './config.js';
+import {
+  CAR, CAR_CLASS_LABEL, CAR_CLASS_WEIGHTS, CAR_NAMES_BY_CLASS,
+  CITY, PALETTE, PARKED_COUNT, TRAFFIC_COUNT,
+} from './config.js';
 import { clampToCity, collideCircle, nearestRoad, randomRoadPoint } from './city.js';
-import { chance, pick, range } from './random.js';
+import { chance, pick, range, weighted } from './random.js';
 
-function carMesh(color, isPolice) {
+// Body/cabin proportions per class: [width, height, depth, centre height]
+// and [width, height, depth, centre height, centre z]. The van has no
+// separate cabin — its body is the cabin.
+const CLASS_SPECS = {
+  sedan: { body: [2.0, 0.62, 4.4, 0.62], cabin: [1.7, 0.55, 2.2, 1.15, -0.25], wheelR: 0.38, wheelY: 0.38 },
+  coupe: { body: [2.0, 0.55, 4.4, 0.58], cabin: [1.6, 0.48, 1.7, 1.05, -0.55], wheelR: 0.38, wheelY: 0.38 },
+  suv: { body: [2.0, 0.78, 4.4, 0.70], cabin: [1.75, 0.62, 2.6, 1.35, -0.10], wheelR: 0.42, wheelY: 0.42 },
+  van: { body: [2.0, 1.05, 4.4, 0.85], cabin: null, wheelR: 0.40, wheelY: 0.40 },
+  taxi: { body: [2.0, 0.62, 4.4, 0.62], cabin: [1.7, 0.55, 2.2, 1.15, -0.25], wheelR: 0.38, wheelY: 0.38 },
+  sports: { body: [2.05, 0.50, 4.5, 0.55], cabin: [1.6, 0.42, 1.5, 0.95, -0.40], wheelR: 0.40, wheelY: 0.40 },
+  police: { body: [2.0, 0.62, 4.4, 0.62], cabin: [1.7, 0.55, 2.2, 1.15, -0.25], wheelR: 0.38, wheelY: 0.38 },
+};
+
+function box(w, h, d, mat, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.position.set(x, y, z);
+  return mesh;
+}
+
+function carMesh(color, isPolice, cls) {
+  const spec = CLASS_SPECS[cls] || CLASS_SPECS.sedan;
+  const [bw, bh, bd, by] = spec.body;
+  const frontZ = bd / 2;
   const group = new THREE.Group();
   const paint = new THREE.MeshLambertMaterial({ color: isPolice ? PALETTE.policeWhite : color });
   const dark = new THREE.MeshLambertMaterial({ color: 0x181c22 });
   const glass = new THREE.MeshLambertMaterial({ color: 0x9fc8e8 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.62, 4.4), paint);
-  body.position.y = 0.62;
+  const trim = new THREE.MeshLambertMaterial({ color: 0x2a2e33 });
+
+  // Body + hood + trunk (the van's tall body is its own cabin).
+  const body = box(bw, bh, bd, paint, 0, by, 0);
   body.castShadow = true;
   group.add(body);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 2.2), isPolice ? paint : glass);
-  cabin.position.set(0, 1.15, -0.25);
-  cabin.castShadow = true;
-  group.add(cabin);
-  if (isPolice) {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.3, 1.2), new THREE.MeshLambertMaterial({ color: PALETTE.policeBlack }));
-    band.position.set(0, 0.62, 0.6);
-    group.add(band);
+  if (cls !== 'van') {
+    const hoodLen = cls === 'coupe' || cls === 'sports' ? 1.35 : 1.0;
+    group.add(box(bw - 0.1, 0.26, hoodLen, paint, 0, by + 0.1, frontZ - hoodLen / 2 - 0.15));
+    group.add(box(bw - 0.1, 0.3, 0.9, paint, 0, by + 0.1, -frontZ + 0.45));
   }
-  const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.3, 12);
+
+  // Cabin: glasshouse, or the police white roof. The van gets a raked
+  // windshield and side glass instead of a separate cabin box.
+  if (spec.cabin) {
+    const [cw, ch, cd, cy, cz] = spec.cabin;
+    const cabin = box(cw, ch, cd, isPolice ? paint : glass, 0, cy, cz);
+    cabin.castShadow = true;
+    group.add(cabin);
+    // Windshield and rear window: thin tilted glass over the cabin ends,
+    // sloping down from the roof to the hood and the trunk. (A positive
+    // rotation.x tips the panel's front edge down; negative tips its rear
+    // edge down.)
+    const shield = box(cw - 0.1, 0.05, 1.1, glass, 0, cy + ch / 2 - 0.15, cz + cd / 2 + 0.45);
+    shield.rotation.x = 0.5;
+    group.add(shield);
+    const rearGlass = box(cw - 0.1, 0.05, 1.0, glass, 0, cy + ch / 2 - 0.15, cz - cd / 2 - 0.4);
+    rearGlass.rotation.x = -0.5;
+    group.add(rearGlass);
+  } else {
+    const shield = box(1.8, 0.7, 0.06, glass, 0, 1.35, frontZ - 0.25);
+    shield.rotation.x = -0.3;
+    group.add(shield);
+    for (const sx of [-1, 1]) {
+      group.add(box(0.04, 0.5, 2.6, glass, sx * (bw / 2 + 0.01), 1.3, -0.3));
+      group.add(box(0.02, 0.9, 1.2, trim, sx * (bw / 2 + 0.01), 0.8, 0.3));
+    }
+    group.add(box(1.4, 0.4, 0.04, glass, 0, 1.5, -frontZ - 0.01));
+  }
+
+  // Wheels with hubcaps; the hubcap rides on the wheel so it spins with it.
+  const wheelGeo = new THREE.CylinderGeometry(spec.wheelR, spec.wheelR, cls === 'sports' ? 0.34 : 0.3, 12);
   const wheelMat = new THREE.MeshLambertMaterial({ color: 0x14161a });
+  const hubGeo = new THREE.CylinderGeometry(spec.wheelR * 0.55, spec.wheelR * 0.55, 0.32, 10);
+  const hubMat = new THREE.MeshLambertMaterial({ color: 0xb8bcc2 });
   const wheels = [];
   for (const [wx, wz] of [[-0.95, 1.45], [0.95, 1.45], [-0.95, -1.45], [0.95, -1.45]]) {
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(wx, 0.38, wz);
+    wheel.position.set(wx, spec.wheelY, wz);
     wheel.castShadow = true;
+    wheel.add(new THREE.Mesh(hubGeo, hubMat));
     group.add(wheel);
     wheels.push(wheel);
   }
+
+  // Lights: warm headlights and grille up front, red taillights at the back.
   const lightMat = new THREE.MeshLambertMaterial({ color: 0xfff2c8, emissive: 0xffedb0, emissiveIntensity: 0.7 });
+  const tailMat = new THREE.MeshLambertMaterial({ color: 0xff2a2a, emissive: 0xd41e1e, emissiveIntensity: 0.8 });
   for (const lx of [-0.6, 0.6]) {
-    const light = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.18, 0.1), lightMat);
-    light.position.set(lx, 0.62, 2.21);
-    group.add(light);
+    group.add(box(0.4, 0.18, 0.1, lightMat, lx, by, frontZ + 0.01));
+    group.add(box(0.42, 0.16, 0.08, tailMat, lx, by + 0.05, -frontZ - 0.01));
   }
+  group.add(box(1.2, 0.14, 0.06, trim, 0, by - 0.08, frontZ + 0.01));
+  // Bumpers and mirrors.
+  group.add(box(bw + 0.02, 0.16, 0.12, trim, 0, 0.42, frontZ + 0.02));
+  group.add(box(bw + 0.02, 0.16, 0.12, trim, 0, 0.42, -frontZ - 0.02));
+  for (const mx of [-1, 1]) {
+    group.add(box(0.12, 0.1, 0.22, trim, mx * (bw / 2 + 0.04), 1.05, 0.75));
+  }
+
+  // Class extras — the details that read at a glance in a screenshot.
+  if (cls === 'taxi') {
+    const signMat = new THREE.MeshLambertMaterial({ color: 0xffc93c, emissive: 0xffb020, emissiveIntensity: 1.0 });
+    group.add(box(0.9, 0.22, 0.4, signMat, 0, 1.55, -0.25));
+    for (const sx of [-1, 1]) group.add(box(0.02, 0.2, 3.8, trim, sx * (bw / 2 + 0.01), by, 0));
+  } else if (cls === 'sports') {
+    group.add(box(1.7, 0.06, 0.4, trim, 0, 1.02, -frontZ + 0.15));
+    for (const sx of [-0.6, 0.6]) group.add(box(0.08, 0.22, 0.08, trim, sx, 0.9, -frontZ + 0.15));
+    for (const sx of [-1, 1]) group.add(box(0.1, 0.12, 3.6, trim, sx * (bw / 2 + 0.02), 0.32, 0));
+  } else if (cls === 'suv') {
+    for (const rx of [-0.7, 0.7]) group.add(box(0.08, 0.08, 2.4, trim, rx, 1.7, -0.1));
+  }
+
   let barRed = null;
   let barBlue = null;
   if (isPolice) {
+    const band = box(2.02, 0.3, 1.2, new THREE.MeshLambertMaterial({ color: PALETTE.policeBlack }), 0, 0.62, 0.6);
+    group.add(band);
+    // Push bar on the nose: the interceptor's calling card.
+    group.add(box(1.6, 0.18, 0.12, trim, 0, 0.55, frontZ + 0.06));
+    for (const vx of [-0.5, 0.5]) group.add(box(0.12, 0.5, 0.1, trim, vx, 0.6, frontZ + 0.06));
     barRed = new THREE.Mesh(
       new THREE.BoxGeometry(0.7, 0.22, 0.5),
       new THREE.MeshLambertMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 1 }),
@@ -66,9 +157,11 @@ export function createVehicles(scene, city, random) {
   const cars = [];
   let playerCar = null;
 
-  function addCar(x, z, yaw, color, kind) {
+  function addCar(x, z, yaw, color, kind, cls) {
     const isPolice = kind === 'police';
-    const { group, wheels, barRed, barBlue } = carMesh(color, isPolice);
+    const carCls = cls || (isPolice ? 'police' : weighted(random, CAR_CLASS_WEIGHTS));
+    const paint = carCls === 'taxi' ? 0xe8c832 : color;
+    const { group, wheels, barRed, barBlue } = carMesh(paint, isPolice, carCls);
     group.position.set(x, 0, z);
     group.rotation.y = yaw;
     scene.add(group);
@@ -77,8 +170,10 @@ export function createVehicles(scene, city, random) {
       x, z, yaw,
       speed: 0,
       steer: 0,
-      color,
-      name: isPolice ? 'MBPD Interceptor' : pick(random, CAR_NAMES),
+      color: paint,
+      name: isPolice ? 'MBPD Interceptor' : pick(random, CAR_NAMES_BY_CLASS[carCls]),
+      cls: carCls,
+      clsLabel: CAR_CLASS_LABEL[carCls],
       kind, // 'player' | 'traffic' | 'parked' | 'police' | 'van'
       target: null, // traffic/police waypoint {x,z}
       routeAxis: null,

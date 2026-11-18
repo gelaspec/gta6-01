@@ -219,9 +219,9 @@ export function createHud(city) {
         speedVal.textContent = kmh;
         lastSpeed = kmh;
       }
-      const carLabel = `${s.carName || ''} · GEAR ${s.gear || 1}`;
+      const carLabel = `${s.carName || ''} · ${s.carClass || ''} · GEAR ${s.gear || 1}`;
       if (carLabel !== lastCar) {
-        carNameEl.textContent = s.carName || '';
+        carNameEl.textContent = s.carName ? `${s.carName}${s.carClass ? ` · ${s.carClass}` : ''}` : '';
         carGearEl.textContent = `GEAR ${s.gear || 1}`;
         lastCar = carLabel;
       }

@@ -20,7 +20,7 @@ const JUMP = new Set(['Space']);
 const CONFIRM = new Set(['Enter']);
 const PAUSE = new Set(['KeyP', 'Escape']);
 const ENTER = new Set(['KeyE']);
-const PUNCH = new Set(['KeyF']);
+const PUNCH = new Set(['KeyF', 'KeyX']);
 const CAMERA = new Set(['KeyC']);
 const MUTE = new Set(['KeyM']);
 

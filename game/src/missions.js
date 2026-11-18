@@ -134,7 +134,7 @@ export function createMissions(scene, city, random, game) {
         setObjective('Get the heat on: reach 3 stars, any way you like. Steal, speed, shoot.', null);
       }
     } else if (i === 4) {
-      const van = game.vehicles.addCar(-160, -200, Math.PI / 2, 0x1a1a1a, 'parked');
+      const van = game.vehicles.addCar(-160, -200, Math.PI / 2, 0x1a1a1a, 'parked', 'van');
       van.isHeistVan = true;
       state.van = van;
       game.combat.spawnEnemy(-156, -196, 'gang');

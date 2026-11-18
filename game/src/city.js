@@ -639,6 +639,8 @@ export function buildCity(scene, random) {
   landmark('CLUB VOLT', 91, -149, Math.PI / 4);
   landmark('HARBOR MARKET', -229, -11, Math.PI / 4);
   landmark('CALLE VERDE', 11, 171, Math.PI / 4);
+  landmark('OLD PORT', -171, -171, Math.PI / 4);
+  landmark('NORTHSIDE', 171, -171, Math.PI / 4);
 
   scene.add(group);
   return {

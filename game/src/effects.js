@@ -4,7 +4,9 @@
 
 import * as THREE from 'three';
 
-const MAX = 320;
+// v2: a bigger pool (was 320) so chase smoke and gunfire never recycle
+// mid-burst when several effects fire at once.
+const MAX = 384;
 
 export function createEffects(scene) {
   const positions = new Float32Array(MAX * 3);

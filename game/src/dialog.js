@@ -34,6 +34,7 @@ export const DIALOG_LINES = {
   ],
   // Police radio dispatch, keyed by wanted level.
   dispatch: {
+    1: `All units — petty theft reported. Keep it quiet, bring him in.`,
     2: `All units — suspect in a stolen car. Move in, keep it clean.`,
     3: `Three stars on the runner. Two cruisers in pursuit — box him in.`,
     4: `Four stars. Air support requested. Do not let him reach the pier.`,
