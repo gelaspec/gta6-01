@@ -1,11 +1,11 @@
-// Meridian Bay — tuning numbers, the BRIGHT v4 palette and the
-// world constants (districts, streets, landmarks, radio, cars, REP).
-// v4 palette: warm light-grey asphalt, vivid car paint, turquoise sea
-// and a golden sky — the user said v3 looked too dark next to the
-// top-20 covers, so every surface in v4 is a stop brighter.
+// Meridian Bay — tuning numbers, the BRIGHT palette and the world
+// constants (districts, streets, landmarks, radio, cars, REP).
+// The palette is deliberately bright: pale warm-grey asphalt, vivid
+// car paint, turquoise sea and a golden sky, so the game reads like
+// the top entries' covers instead of a dark alley.
 
 export const CONFIG = {
-  // World layout: a 7x7 street grid, 40 m blocks, beach on the east edge.
+  // World: a 7x7 street grid, 40 m blocks, beach on the east edge.
   block: 40,
   roadHalf: 5,
   gridMin: -120,
@@ -79,7 +79,7 @@ export const PALETTE = {
   sea: 0x2a9db5,
   sand: 0xefd9a8,
   grass: 0x6fae56,
-  // v4 headline: the road is a warm light grey, not near-black.
+  // Headline of the bright palette: warm light-grey asphalt.
   asphalt: 0x6e7480,
   sidewalk: 0xb9bfc9,
   buildingGlass: 0x3a5a78,
@@ -96,7 +96,6 @@ export const PALETTE = {
   taxiYellow: 0xffd60a,
   policeWhite: 0xf2f4f8,
   policeBlack: 0x232a38,
-  // Neon sign inks for the brighter storefronts.
   neonPink: 0xff4da6,
   neonCyan: 0x33e0ff,
   neonYellow: 0xffe14d,

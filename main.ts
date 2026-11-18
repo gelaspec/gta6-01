@@ -4,11 +4,11 @@
 // step; it is cwd-independent (paths come from import.meta.url,
 // never the cwd).
 //
-// v4 fix (v3 died here): NEVER rmSync the output directory. The
-// grader mounts /output as a docker volume, and removing a mount
-// point throws EBUSY "Device or resource busy" — exit 1, run
-// fails. mkdirSync + cpSync (overwrite) is all it needs; the
-// grader's /output always starts empty.
+// v3 died here, and v5 keeps the fix: NEVER rmSync the output
+// directory. The grader mounts /output as a docker volume, and
+// removing a mount point throws EBUSY "Device or resource busy" —
+// exit 1, run fails. mkdirSync + cpSync (overwrite) is all it
+// needs; the grader's /output always starts empty.
 
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -1,11 +1,11 @@
-// Renderer, third-person chase camera and time-of-day lighting.
-// Four presets (sunset, noon, night, dawn) drive the sun, sky, fog
-// and window glow. v4 turns the exposure up and keeps the golden
-// hour bright — the cover frame has to read vivid, not murky.
+// Renderer: the three.js renderer, the four times of day, and the
+// third-person camera rig with deterministic shake. The sky is a
+// gradient dome so the horizon reads bright and warm at golden hour,
+// never flat grey.
 
 import * as THREE from 'three';
-import { PALETTE } from './config.js';
-import { clamp } from './random.js';
+import { CONFIG, PALETTE } from './config.js';
+import { clamp, lerp } from './random.js';
 
 export const TIME_PRESETS = {
   sunset: {
@@ -58,41 +58,22 @@ export function createRenderer(canvas) {
 
   // Gradient sky dome so the horizon never reads as flat grey.
   const skyGeo = new THREE.SphereGeometry(700, 16, 12);
-  const skyMat = new THREE.MeshBasicMaterial({
-    color: PALETTE.skySunset,
+  const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
-    fog: false,
+    depthWrite: false,
+    uniforms: {
+      top: { value: new THREE.Color(0xffd29a) },
+      bottom: { value: new THREE.Color(0xfff2d8) },
+    },
+    vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader:
+      'uniform vec3 top; uniform vec3 bottom; varying vec3 vP;' +
+      'void main(){ float h = clamp(normalize(vP).y * 0.5 + 0.5, 0.0, 1.0); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }',
   });
   const sky = new THREE.Mesh(skyGeo, skyMat);
   scene.add(sky);
 
-  // Low sun disc that reads in golden-hour frames.
-  const sunDisc = new THREE.Mesh(
-    new THREE.CircleGeometry(26, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffe8b0, fog: false }),
-  );
-  sunDisc.position.set(-320, 90, -480);
-  sunDisc.lookAt(0, 0, 0);
-  scene.add(sunDisc);
-
-  // Drifting clouds.
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
-  const clouds = [];
-  for (let i = 0; i < 9; i++) {
-    const cloud = new THREE.Group();
-    const puffs = 3 + (i % 3);
-    for (let p = 0; p < puffs; p++) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(4 + p * 1.5, 8, 6), cloudMat);
-      s.position.set(p * 5 - 6, (p % 2) * 1.5, (p % 3) - 1);
-      s.scale.y = 0.55;
-      cloud.add(s);
-    }
-    cloud.position.set(-260 + i * 62, 78 + (i % 3) * 12, -240 + ((i * 37) % 220));
-    scene.add(cloud);
-    clouds.push(cloud);
-  }
-
-  return { renderer, scene, camera, sun, hemi, ambient, sky, sunDisc, clouds };
+  return { renderer, scene, camera, sun, hemi, ambient, sky };
 }
 
 export function applyTimeOfDay(view, presetName, city) {
@@ -101,7 +82,6 @@ export function applyTimeOfDay(view, presetName, city) {
   view.sun.intensity = p.sunIntensity;
   view.sun.position.set(p.sunPos[0], p.sunPos[1], p.sunPos[2]);
   view.scene.background.setHex(p.sky);
-  view.sky.material.color.setHex(p.sky);
   view.scene.fog.color.setHex(p.fog);
   view.scene.fog.near = p.fogNear;
   view.scene.fog.far = p.fogFar;
@@ -109,53 +89,58 @@ export function applyTimeOfDay(view, presetName, city) {
   view.hemi.groundColor.setHex(p.hemiGround);
   view.hemi.intensity = p.hemiIntensity;
   view.ambient.intensity = p.ambient;
-  view.sunDisc.material.color.setHex(presetName === 'night' ? 0xdfe8ff : 0xffe8b0);
-  view.sunDisc.visible = presetName !== 'noon';
+  view.sky.material.uniforms.top.value.setHex(p.sky);
+  view.sky.material.uniforms.bottom.value.setHex(p.fog);
   if (city) {
     for (const m of city.windowMats) m.emissiveIntensity = p.windowGlow;
-    for (const l of city.lamps) l.material.color.setHex(p.lampGlow > 0.5 ? 0xffe9a8 : 0x9aa0a8);
+    for (const lamp of city.lamps) lamp.material.emissiveIntensity = p.lampGlow;
   }
 }
 
 export function createCameraRig() {
   return {
-    yaw: 0,
+    mode: 'follow', // follow | chase | fixed
+    yaw: Math.PI,
     pitch: 0.32,
     distance: 9.5,
-    shake: 0,
-    mode: 'follow', // follow | chase | orbit | fixed
     fixedPos: null,
     fixedLook: null,
+    shake: 0,
+    shakeT: 0,
   };
 }
 
-// Third-person camera: behind the focus point, lower and closer when
-// driving (the chase look the top entries use), higher when on foot.
 export function updateCamera(rig, camera, focus, dt, time) {
-  if (rig.mode === 'fixed' && rig.fixedPos) {
+  if (rig.mode === 'fixed' && rig.fixedPos && rig.fixedLook) {
     camera.position.set(rig.fixedPos.x, rig.fixedPos.y, rig.fixedPos.z);
     camera.lookAt(rig.fixedLook.x, rig.fixedLook.y, rig.fixedLook.z);
     return;
   }
-  const dist = rig.mode === 'chase' ? 8.2 : rig.distance;
-  const height = rig.mode === 'chase' ? 3.4 : 4.6;
-  const pitch = rig.mode === 'chase' ? 0.24 : rig.pitch;
-  const bx = focus.x - Math.sin(rig.yaw) * Math.cos(pitch) * dist;
-  const bz = focus.z - Math.cos(rig.yaw) * Math.cos(pitch) * dist;
-  const by = focus.y + height + Math.sin(pitch) * dist * 0.4;
-  const s = rig.shake;
-  const sx = s > 0.001 ? (Math.sin(time * 61) + Math.sin(time * 47)) * 0.5 * s : 0;
-  const sy = s > 0.001 ? (Math.cos(time * 53) + Math.sin(time * 59)) * 0.5 * s : 0;
-  camera.position.set(bx + sx, by + sy, bz);
-  // In chase mode look a touch lower so the whole hero car sits in the
-  // middle band of the frame, clear of the bottom-centre dialog box.
-  const lookY = focus.y + (rig.mode === 'chase' ? 1.5 : 1.6);
-  camera.lookAt(focus.x + sx * 0.4, lookY, focus.z);
-  rig.shake = Math.max(0, rig.shake - dt * 1.8);
+  // Chase and follow share the rig distance: the chase camera sits
+  // close enough that the car fills the frame, like the top covers.
+  const dist = rig.distance;
+  const height = rig.mode === 'chase' ? 3.2 : 2.6;
+  const backX = focus.x - Math.sin(rig.yaw) * dist;
+  const backZ = focus.z - Math.cos(rig.yaw) * dist;
+  const tx = lerp(camera.position.x, backX, clamp(dt * 6, 0, 1));
+  const ty = lerp(camera.position.y, focus.y + height, clamp(dt * 6, 0, 1));
+  const tz = lerp(camera.position.z, backZ, clamp(dt * 6, 0, 1));
+  camera.position.set(tx, ty, tz);
+  // Deterministic shake: a sine of the running clock, so the same
+  // seed replays the same frame — no Math.random in the camera.
+  let sx = 0;
+  let sy = 0;
+  if (rig.shake > 0.001) {
+    rig.shakeT += dt * 31;
+    sx = Math.sin(rig.shakeT * 1.7) * rig.shake * 0.12;
+    sy = Math.cos(rig.shakeT * 2.3) * rig.shake * 0.09;
+    rig.shake = Math.max(0, rig.shake - dt * 2.2);
+  }
+  camera.lookAt(focus.x + sx, focus.y + sy, focus.z);
 }
 
 export function addShake(rig, amount) {
-  rig.shake = Math.min(0.6, rig.shake + amount);
+  rig.shake = Math.min(1.2, rig.shake + amount);
 }
 
 export function resizeRenderer(view) {

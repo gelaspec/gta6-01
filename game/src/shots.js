@@ -1,11 +1,10 @@
 // Deterministic staged scenes for the four screenshots.
-// ?shot=title|chase|dialog|progress&seed=1 sets money, day, time,
+// ?shot=chase|onfoot|dialog|progress&seed=1 sets money, day, time,
 // wanted, mission, camera and traffic, then marks window.__shotReady
 // once the frame has settled. The game itself keeps running behind
 // the staged state, so every shot is a real render of the live game.
-// v4: the cover car is hot pink (rank-1 bright), and shot 3's panel
-// and dialog name the SAME mission (M5 Pier Heist) — v3 mixed M6's
-// panel with M5's dialog.
+// The cover is the late-mission chase: M6, four stars, helicopter,
+// $31,200, golden hour, hot-pink Comet GT — never a menu.
 
 import { CONFIG } from './config.js';
 import { applyTimeOfDay } from './render.js';
@@ -102,6 +101,9 @@ export function applyShot(G, name) {
     G.missions.current.stage = 2;
     G.missions.current.holdLeft = 14;
     G.missions.current.stageLabel = 'STAGE 3/4';
+    G.missions.current.target = { x: -60, z: 100 };
+    G.missions.beacon.position.set(-60, 30, 100);
+    G.missions.ring.position.set(-60, 0.15, 100);
     // The car starts on the hidden package at (120, 60) in other scenes:
     // mark it taken here so the cover money stays exactly $31,200.
     const pkg = G.missions.packages.find((pk) => pk.x === 120 && pk.z === 60);
@@ -230,9 +232,11 @@ export function applyShot(G, name) {
     p.heading = Math.PI * 0.5;
     p.mesh.position.set(p.x, 0, p.z);
     p.mesh.rotation.y = p.heading;
-    G.rig.mode = 'follow';
-    G.rig.yaw = Math.PI * 0.5;
-    G.rig.distance = 8;
+    // Fixed camera from the south side of the pier: Cassian, the black
+    // van, the beacon pillar, the lighthouse and the sea all in frame.
+    G.rig.mode = 'fixed';
+    G.rig.fixedPos = { x: 116, y: 13, z: 36 };
+    G.rig.fixedLook = { x: 168, y: 2, z: -2 };
     stageTrafficOnRoad(G, 120, -60, 30, 4);
     stagePedsNear(G, 140, 6, 6, 10);
     G.dialog.clear();

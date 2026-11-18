@@ -1,6 +1,6 @@
-// Meridian Bay — seeded randomness and small math/format helpers.
-// One mulberry32 stream per seed, so seed=1 always stages the same
-// city, the same traffic and the same screenshot frames.
+// Meridian Bay — seeded randomness plus the small math and format
+// helpers every other module shares. One mulberry32 stream per seed,
+// so seed=1 always builds the same city, traffic and screenshots.
 
 export function mulberry32(seed) {
   let a = seed >>> 0;

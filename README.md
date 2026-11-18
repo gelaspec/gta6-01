@@ -16,7 +16,7 @@ Then open http://localhost:8080 in a desktop browser and press Enter (or click) 
 
 ## The game
 
-- **The city.** A coastal 7×7 grid with five districts (Old Port, Downtown, Calle Verde, Northside, Marina), a beach and pier with a lighthouse, a plaza fountain, palm-lined streets, neon billboards, and eight landmark signs. Four times of day: golden-hour sunset, noon, neon night, dawn. The v4 palette is deliberately bright — light-grey roads, vivid car paint, turquoise sea — so the game reads like the top entries' covers, not a dark alley.
+- **The city.** A coastal 7×7 grid with five districts (Old Port, Downtown, Calle Verde, Northside, Marina), a beach and pier with a lighthouse, a plaza fountain, palm-lined streets, neon billboards, and eight landmark signs. Four times of day: golden-hour sunset, noon, neon night, dawn. The palette is deliberately bright — light-grey roads, vivid car paint, turquoise sea — so the game reads like the top entries' covers, not a dark alley.
 - **On foot and by car.** Walk, run and jump as Cassian Rowe; steal any parked car with E, drive with WASD, handbrake with Space. Sedans, taxis, vans and the hot-pink Comet GT sports car all handle differently, and every car takes damage.
 - **Traffic and pedestrians.** Cars follow the road grid and brake for the car ahead; pedestrians stroll the sidewalks, flee when you hit them, and shout at you.
 - **Wanted and police.** Crimes raise your wanted level from one to five stars. MBPD cruisers chase and ram, foot cops close in, and at three stars the Air One helicopter puts its spotlight on you. Break line of sight and stay quiet to cool the heat. Each district tracks its own HEAT; at 5 a district goes into LOCKDOWN.
