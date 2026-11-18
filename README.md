@@ -1,86 +1,71 @@
-# Meridian Bay — Open-World Crime
-
-Submit title: **MERIDIAN BAY: sun-soaked open-world crime — 6 story missions, police chases, heists, taxi fares, radio and saves**
+# Meridian Bay — an open-world crime game for make.fun (gta6-01)
 
 [![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
 [![rank](https://make.fun/badge/gta6-01/gelaspec/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01)
 [![reward](https://make.fun/badge/gta6-01/gelaspec/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01)
 
-**Meridian Bay** is an open-world crime game in the spirit of GTA 6, built for the
-[make.fun gta6-01 bounty](https://make.fun/bounty/gta6-01): a sun-soaked port city
-you explore on foot and by car, with traffic, pedestrians, a wanted level and
-police who chase you, six story missions, combat, a HUD with a live minimap,
-and a save that keeps your progress.
+Meridian Bay is a complete open-world crime game that runs entirely from static files — no build step, no network, no account. Steal cars, outrun the MBPD, run six story missions for fixer Inez Kade, and pull off the Meridian Job: twenty seconds inside the bank while the whole city comes for you.
 
-## The story
+## Play it
 
-Cassian Rowe is back in town with nothing but a debt and a fast mouth. Fixer
-Inez Kade has six jobs for you — steal a car, run a courier package, pick up
-the Old Port drops, get the heat on and lose it, heist the Harbor Kings van,
-and finally pull **The Meridian Job**: rob the Meridian Bank and run for the
-pier. Between jobs there are ten hidden packages to find and taxi fares to run.
+```sh
+node serve.ts          # serves the game on http://localhost:8080
+```
 
-## Play
+Then open http://localhost:8080 in a desktop browser and press Enter (or click) to start. Everything is generated in code: the city, the cars, the people, the radio, the sound. Three.js is vendored under `game/vendor/`.
 
-Serve `game/` with any static server (`node serve.ts`, then open
-http://localhost:8080) and play in desktop Chrome. No network request is
-made; everything — including three.js — is a file under `game/`.
+## The game
+
+- **The city.** A coastal 7×7 grid with seven districts (Downtown, Marina, Old Town, Harbor, The Keys, Northgate, Bayview), a beach and pier with a lighthouse, a plaza fountain, palm-lined streets, and eight landmark signs. Four times of day: golden-hour sunset, noon, neon night, dawn.
+- **On foot and by car.** Walk, run and jump as Cassian Rowe; steal any parked car with E, drive with WASD, handbrake with Space. Sedans, taxis, vans and the Comet GT sports car all handle differently, and every car takes damage.
+- **Traffic and pedestrians.** Cars follow the road grid and brake for the car ahead; pedestrians stroll the sidewalks, flee when you hit them, and shout at you.
+- **Wanted and police.** Crimes raise your wanted level from one to five stars. MBPD cruisers chase and ram, foot cops close in, and at three stars the Air One helicopter puts its spotlight on you. Break line of sight and stay quiet to cool the heat. Each district tracks its own HEAT; at 5 a district goes into LOCKDOWN.
+- **The story — "The Meridian Job".** Six missions with fixer briefs and MBPD radio chatter: steal your first wheels, run a 90-second courier, collect three drops, survive three stars, steal the black Harbor Kings van from the pier, and hold the bank for twenty seconds at four stars.
+- **Side jobs.** Ten hidden packages across the city (+$150 each), taxi fares while you drive (+$120 a ride), and a REP ladder from Nobody to Bay Legend.
+- **Combat.** Fists (F) and a pistol (click to shoot, 12 rounds, auto-reload) against Harbor Kings gunmen during the bank job.
+- **HUD and minimap.** Mission panel with chapter, stage bar and NEXT line; named police units with distances and statuses; wanted stars with an IN SIGHT tag; money, day and clock; weapon slots; circular live minimap with district and street names; dialog box with portraits for Inez Kade, Cassian Rowe, MBPD Dispatch and Rook; speed, car condition, radio station and song; REP bar.
+- **Sound.** A WebAudio synth: engine hum, sirens, gunshots, cash pickups and a synthwave radio loop (M to mute, R to change station).
+- **Save.** Progress (money, REP, mission, packages, district heat) is saved to localStorage after every completed mission.
+
+## Controls
 
 | Key | Action |
 | --- | --- |
-| W A S D | Move / drive |
+| Enter / click | Start, continue, next mission |
+| WASD / arrows | Move on foot, drive |
 | Shift | Run |
 | Space | Jump / handbrake |
-| E | Steal car / exit car |
+| E | Steal / exit car |
 | F | Punch |
-| Click | Shoot the pistol |
-| C | Camera |
-| P / Esc | Pause |
+| Click | Shoot (on foot) |
+| C | Camera distance |
+| R | Radio station |
 | M | Mute |
-
-## Systems
-
-- **City** — a procedural road grid with towers, parks, plazas, palms, a beach,
-  the ocean and a wooden pier with a lighthouse (`game/src/city.js`).
-- **Cars** — arcade physics, stealable parked cars, traffic that follows the
-  road grid, police interceptors (`game/src/vehicles.js`, `game/src/police.js`).
-- **Wanted** — 0–5 stars. Stealing, hitting pedestrians and shooting raise the
-  heat; break line of sight and stay quiet to cool off.
-- **Missions** — six story jobs with waypoints, timers and payouts, each
-  opened by the fixer's briefing and closed on a mission-passed screen
-  (payout, stats, star rating, next job), plus hidden packages and taxi
-  fares (`game/src/missions.js`, `game/src/dialog.js`).
-- **Dialog** — the fixer briefs every job, calls mid-mission beats, and the
-  police radio dispatch answers the wanted level, all with named speakers
-  and portraits (`game/src/dialog.js`).
-- **Combat** — pistol with raycast hits, muzzle flash and tracers, melee punch,
-  gang members who shoot back (`game/src/combat.js`).
-- **HUD** — money, day + clock, current district and its heat, radio
-  station, ammo, car name + gear, mission objective, wanted stars, health,
-  speed and a live 2D minimap (`game/src/hud.js`).
-- **District heat** — crimes heat the district they happen in; at 5 a
-  district is in LOCKDOWN and extra cruisers roll in
-  (`game/src/police.js`).
-- **Sound** — fully synthesised WebAudio: engine, sirens, gunshots, pickups and
-  a synthwave pad (`game/src/audio.js`).
-- **Save** — money, mission progress and packages in localStorage
-  (`game/src/save.js`).
+| P | Pause |
 
 ## Screenshots
 
-The four screenshots in `screenshots/` are real renders of the game, taken
-deterministically with `?shot=title|chase|dialog|progress&seed=1` — the title
-screen at dusk over the beach, a sunset police chase with the dispatch on
-the radio, the bank hold-up in daylight with the fixer talking, and a
-mission-passed screen at night over the neon city. Money, day + clock, radio
-station and time of day differ in every shot, so the four frames together
-show the story, the chase, the combat and the progression.
+The four screenshots in `screenshots/` are real renders of the game, taken deterministically with `?shot=<scene>&seed=1`:
 
-## Entry
+1. `1-chase.jpg` — the cover: M6, four stars, Air One overhead, $31,200, golden hour.
+2. `2-onfoot.jpg` — M1, on foot beside a stolen sedan, $250, dusk.
+3. `3-dialog.jpg` — M5, the Pier Heist brief from Inez Kade, $4,850, noon.
+4. `4-progress.jpg` — M4 passed, $18,450, neon night.
 
-`main.ts` (Node 22, standard library only) copies `game/` and `screenshots/`
-to `/output` and writes `dossier.json` with the vendored make.fun library:
+Re-render them with:
 
 ```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+node render-shots.mjs
 ```
+
+## Build the dossier
+
+```sh
+node main.ts
+```
+
+This copies `game/` and `screenshots/` into `$MAKEFUN_OUTPUT_DIR` (default `/output`) and writes `dossier.json` there. Two runs from any directory produce byte-identical output.
+
+## Original work
+
+Meridian Bay is original IP written for this bounty: its city, characters, story, missions and code were created for the competition. Three.js (MIT) is vendored under `game/vendor/`; everything else is this repository's own code.

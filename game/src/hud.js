@@ -1,277 +1,236 @@
-// The HUD: money, mission objective and timer, wanted stars, health, speed,
-// a live 2D minimap of Meridian Bay, the crosshair, toasts, contextual hints
-// and the title / pause / busted / mission-passed / story-complete screens.
-// All DOM, drawn over the WebGL canvas, so the screenshots show the game
-// exactly as played.
-//
-// The HUD is dense on purpose — the judge reads a frame the way a player
-// reads a dashboard: money, day + clock, current district and its heat,
-// the radio station, ammo, the car you are in and its gear, wanted stars,
-// health, speed, the objective and the minimap, all at once.
+// HUD: every DOM panel, the circular live minimap, toasts, and the
+// full screens (title, pause, busted, mission-passed, story-complete).
+// The density checklist from the top-20 covers lives here: mission
+// panel with stage bar, named police units, weapon slots, REP bar.
 
-import { CITY, MISSIONS, PACKAGE_COUNT } from './config.js';
+import { CONFIG, RADIO_STATIONS, districtAt, streetAt, repRank } from './config.js';
+import { formatMoney, formatClock, formatTime } from './random.js';
+import { missionObjectiveText, districtHeat } from './missions.js';
+import { policePanelData } from './police.js';
 
-export function createHud(city) {
-  const $ = (id) => document.getElementById(id);
-  const moneyEl = $('money');
-  const districtEl = $('district');
-  const clockEl = $('clock');
-  const heatEl = $('heat');
-  const radioEl = $('radio');
-  const missionTitleEl = $('mission-title');
-  const missionTextEl = $('mission-text');
-  const missionTimerEl = $('mission-timer');
-  const starsEl = $('stars');
-  const healthFill = $('health-fill');
-  const healthNum = $('health-num');
-  const ammoEl = $('ammo');
-  const speedEl = $('speed');
-  const speedVal = $('speed-val');
-  const carNameEl = $('car-name');
-  const carGearEl = $('car-gear');
-  const crosshair = $('crosshair');
-  const toastEl = $('toast');
-  const hintEl = $('hint');
-  const mapCanvas = $('minimap');
-  const mapCtx = mapCanvas.getContext('2d');
-  const screens = {
-    title: $('screen-title'),
-    pause: $('screen-pause'),
-    busted: $('screen-busted'),
-    passed: $('screen-passed'),
-    complete: $('screen-complete'),
-  };
-  const hudEl = $('hud');
+const $ = (id) => document.getElementById(id);
 
-  let toastTimer = null;
-  let lastMap = 0;
-  let lastMoney = -1;
-  let lastHealth = -1;
-  let lastWanted = -1;
-  let lastSpeed = -1;
-  let lastAmmo = -1;
-  let lastClock = '';
-  let lastDistrict = '';
-  let lastHeat = -1;
-  let lastRadio = '';
-  let lastCar = '';
+export function createHud() {
+  const minimap = $('minimap');
+  const mctx = minimap.getContext('2d');
+  let toastAt = 0;
+  let hintAt = 0;
+  let flashAt = -10;
 
-  function setObjective(title, text) {
-    missionTitleEl.textContent = title;
-    missionTextEl.textContent = text;
-  }
-
-  function setTimer(seconds) {
-    if (seconds === null || seconds === undefined) {
-      missionTimerEl.textContent = '';
-      return;
-    }
-    missionTimerEl.textContent = `${Math.ceil(seconds)}s`;
-  }
-
-  function toast(text) {
-    toastEl.textContent = text;
-    toastEl.classList.add('show');
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
-  }
-
-  function setHint(text) {
-    hintEl.textContent = text || '';
-    hintEl.classList.toggle('show', !!text);
-  }
-
-  function showScreen(name) {
-    for (const [key, el] of Object.entries(screens)) {
-      if (el) el.classList.toggle('show', key === name);
-    }
-    hudEl.classList.toggle('dim', name === 'title');
-  }
-
-  function drawMap(s) {
-    const W = mapCanvas.width;
-    const H = mapCanvas.height;
-    const scale = W / 780;
-    const ox = 300;
-    const oz = 300;
-    const X = (x) => (x + ox) * scale;
-    const Y = (z) => (z + oz) * scale;
-    // Land, ocean and beach.
-    mapCtx.fillStyle = '#5d7a44';
-    mapCtx.fillRect(0, 0, W, H);
-    mapCtx.fillStyle = '#2e7fa8';
-    mapCtx.fillRect(X(CITY.waterX), 0, W - X(CITY.waterX), H);
-    mapCtx.fillStyle = '#e8d5a4';
-    mapCtx.fillRect(X(CITY.beachX), 0, X(CITY.waterX) - X(CITY.beachX), H);
-    // Roads.
-    mapCtx.strokeStyle = '#3a3f46';
-    mapCtx.lineWidth = Math.max(2, CITY.roadWidth * scale);
-    for (const r of city.roads) {
-      mapCtx.beginPath();
-      mapCtx.moveTo(X(-CITY.half), Y(r));
-      mapCtx.lineTo(X(CITY.half), Y(r));
-      mapCtx.stroke();
-      mapCtx.beginPath();
-      mapCtx.moveTo(X(r), Y(-CITY.half));
-      mapCtx.lineTo(X(r), Y(CITY.half));
-      mapCtx.stroke();
-    }
-    // Pier.
-    mapCtx.strokeStyle = '#9a7a52';
-    mapCtx.lineWidth = 3;
-    mapCtx.beginPath();
-    mapCtx.moveTo(X(CITY.beachX), Y(CITY.pierZ));
-    mapCtx.lineTo(X(CITY.pierEndX), Y(CITY.pierZ));
-    mapCtx.stroke();
-    // Mission waypoint.
-    if (s.waypoint) {
-      mapCtx.fillStyle = '#f2c94c';
-      mapCtx.beginPath();
-      mapCtx.arc(X(s.waypoint.x), Y(s.waypoint.z), 6, 0, Math.PI * 2);
-      mapCtx.fill();
-      mapCtx.strokeStyle = '#7a5c00';
-      mapCtx.lineWidth = 2;
-      mapCtx.stroke();
-    }
-    // Hidden packages not yet found.
-    if (s.packages) {
-      mapCtx.fillStyle = '#ffd94a';
-      for (const p of s.packages) {
-        if (p.found) continue;
-        mapCtx.fillRect(X(p.x) - 2, Y(p.z) - 2, 4, 4);
-      }
-    }
-    // Police.
-    if (s.policeCars) {
-      for (const c of s.policeCars) {
-        mapCtx.fillStyle = (Math.floor(performance.now() / 300) % 2 === 0) ? '#ff4444' : '#4488ff';
-        mapCtx.beginPath();
-        mapCtx.arc(X(c.x), Y(c.z), 4, 0, Math.PI * 2);
-        mapCtx.fill();
-      }
-    }
-    // Player arrow.
-    const px = X(s.playerX);
-    const py = Y(s.playerZ);
-    mapCtx.save();
-    mapCtx.translate(px, py);
-    mapCtx.rotate(Math.PI - s.playerYaw); // arrow points where the player faces
-    mapCtx.fillStyle = '#ffffff';
-    mapCtx.strokeStyle = '#222222';
-    mapCtx.lineWidth = 1.5;
-    mapCtx.beginPath();
-    mapCtx.moveTo(0, -7);
-    mapCtx.lineTo(5, 6);
-    mapCtx.lineTo(-5, 6);
-    mapCtx.closePath();
-    mapCtx.fill();
-    mapCtx.stroke();
-    mapCtx.restore();
-  }
-
-  function update(s, now) {
-    if (s.money !== lastMoney) {
-      moneyEl.textContent = `$${Math.floor(s.money).toLocaleString('en-US')}`;
-      lastMoney = s.money;
-    }
-    if (s.district && s.district !== lastDistrict) {
-      districtEl.textContent = s.district.toUpperCase();
-      lastDistrict = s.district;
-    }
-    if (s.clock && s.clock !== lastClock) {
-      clockEl.textContent = s.clock;
-      lastClock = s.clock;
-    }
-    if (s.districtHeat !== undefined && s.districtHeat !== lastHeat) {
-      const h = s.districtHeat;
-      let bars = '';
-      for (let i = 0; i < 5; i += 1) bars += i < h ? '▮' : '▯';
-      heatEl.textContent = h >= 5 ? `HEAT ${bars} LOCKDOWN` : `HEAT ${bars}`;
-      heatEl.classList.toggle('hot', h >= 4);
-      lastHeat = s.districtHeat;
-    }
-    if (s.radio && s.radio !== lastRadio) {
-      radioEl.textContent = s.radio;
-      lastRadio = s.radio;
-    }
-    if (s.wanted !== undefined && s.wanted !== lastWanted) {
-      let stars = '';
-      for (let i = 0; i < 5; i += 1) stars += i < s.wanted ? '★' : '☆';
-      starsEl.textContent = stars;
-      starsEl.classList.toggle('hot', s.wanted > 0);
-      lastWanted = s.wanted;
-    }
-    if (s.health !== lastHealth) {
-      healthFill.style.width = `${Math.max(0, s.health)}%`;
-      healthNum.textContent = `${Math.ceil(s.health)}`;
-      healthFill.style.background = s.health > 50 ? '#3aa856' : s.health > 25 ? '#e8a832' : '#c23b2e';
-      lastHealth = s.health;
-    }
-    if (s.ammo !== undefined && s.ammo !== lastAmmo) {
-      ammoEl.textContent = s.ammo <= 0 ? 'AMMO — RELOADING' : `AMMO ${s.ammo}/${s.ammoMax || 12}`;
-      ammoEl.classList.toggle('empty', s.ammo <= 0);
-      lastAmmo = s.ammo;
-    }
-    if (s.inCar) {
-      speedEl.classList.add('show');
-      const kmh = Math.round(Math.abs(s.speed) * 3.6);
-      if (kmh !== lastSpeed) {
-        speedVal.textContent = kmh;
-        lastSpeed = kmh;
-      }
-      const carLabel = `${s.carName || ''} · ${s.carClass || ''} · GEAR ${s.gear || 1}`;
-      if (carLabel !== lastCar) {
-        carNameEl.textContent = s.carName ? `${s.carName}${s.carClass ? ` · ${s.carClass}` : ''}` : '';
-        carGearEl.textContent = `GEAR ${s.gear || 1}`;
-        lastCar = carLabel;
-      }
-    } else {
-      speedEl.classList.remove('show');
-    }
-    crosshair.classList.toggle('show', !!s.aiming);
-    if (now - lastMap > 100) {
-      lastMap = now;
-      drawMap(s);
-    }
-  }
-
-  return {
-    setObjective,
-    setTimer,
-    toast,
-    setHint,
-    showScreen,
-    update,
-    /** Fill and show the mission-passed screen: payout, stats, star rating,
-     * the fixer's next line and what comes next. */
-    showPassed(stats) {
-      $('passed-title').textContent = `${stats.title} — PASSED`;
-      const mins = Math.floor(stats.time / 60);
-      const secs = Math.floor(stats.time % 60);
-      const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
-      let stars = '';
-      for (let i = 0; i < 3; i += 1) stars += i < stats.stars ? '★' : '☆';
-      $('passed-stars').textContent = stars;
-      $('passed-stats').textContent =
-        `Payout +$${stats.payout.toLocaleString('en-US')}  •  Time ${timeStr}  •  Max wanted ${'★'.repeat(stats.maxWanted)}${'☆'.repeat(Math.max(0, 5 - stats.maxWanted))}  •  Packages ${stats.packages}/${PACKAGE_COUNT}`;
-      $('passed-dialog').textContent = `${stats.speaker}: "${stats.dialog}"`;
-      $('passed-next').textContent = stats.next ? `NEXT: ${stats.next}` : 'Story complete — Meridian Bay is yours.';
+  const hud = {
+    toast(text, seconds = 3) {
+      const el = $('toast');
+      el.textContent = text;
+      el.style.display = 'block';
+      toastAt = performance.now() / 1000 + seconds;
     },
-    setCompleteStats(money, packages) {
-      const el = $('complete-stats');
-      if (el) el.textContent = `Final take: $${Math.floor(money).toLocaleString('en-US')}  •  Packages ${packages}/${PACKAGE_COUNT}  •  Missions 6/6`;
+    hint(text, seconds = 4) {
+      const el = $('hint');
+      el.textContent = text;
+      el.style.display = 'block';
+      hintAt = performance.now() / 1000 + seconds;
     },
-    setEndTitle(text) {
-      const el = $('busted-title');
-      if (el) el.textContent = text;
+    flashDamage() {
+      flashAt = performance.now() / 1000;
     },
-    setTitleStats(money, mission) {
-      const el = $('title-stats');
-      if (el) {
-        el.textContent = money > 250 || mission > 0
-          ? `Saved: $${Math.floor(money).toLocaleString('en-US')}  •  ${mission >= MISSIONS.length ? 'Story complete' : `Mission ${mission + 1}/6`}`
-          : 'A new story in Meridian Bay';
+    refreshMission() {
+      // Called when a mission starts or a stage changes.
+    },
+    update(G) {
+      const now = performance.now() / 1000;
+      if (now > toastAt) $('toast').style.display = 'none';
+      if (now > hintAt) $('hint').style.display = 'none';
+      const p = G.player;
+      const px = p.inCar ? p.inCar.x : p.x;
+      const pz = p.inCar ? p.inCar.z : p.z;
+
+      // Money, district, clock, wanted, REP.
+      $('money').textContent = formatMoney(G.money);
+      const district = districtAt(px, pz);
+      $('district').textContent = district;
+      $('clock').textContent = formatClock(G.clockMinutes);
+      const stars = Math.floor(G.police.wanted);
+      $('wanted-stars').innerHTML =
+        '★'.repeat(stars) + '<span class="off">' + '★'.repeat(5 - stars) + '</span>';
+      $('insight').style.display = G.police.wanted > 0 && G.police.inSight ? 'block' : 'none';
+      const rep = repRank(G.rep);
+      const nextAt = rep.next ? rep.next.at : rep.current.at + 1000;
+      const pct = Math.min(100, ((G.rep - rep.current.at) / Math.max(1, nextAt - rep.current.at)) * 100);
+      $('rep-fill').style.width = pct + '%';
+      $('rep-label').textContent = `REP ${G.rep} · ${rep.current.name} ${Math.round(pct)}% · NEXT: ${rep.next ? rep.next.name : 'MAX'}`;
+
+      // Mission panel.
+      const m = G.missions;
+      if (m.current) {
+        const def = m.current.def;
+        const stageLabel = m.current.stageLabel ? ` · ${m.current.stageLabel}` : '';
+        $('mission-chapter').textContent = `${def.chapter} · M${def.id} / 6${stageLabel}`;
+        $('mission-name').textContent = def.name;
+        let obj = missionObjectiveText(G);
+        if (def.id === 2 && m.current.stage === 1) obj += ` — ${Math.ceil(m.current.timer)}s left.`;
+        $('mission-objective').textContent = obj;
+        const stageTotal = def.id === 3 ? 3 : def.id === 6 ? 3 : 1;
+        const stageNow = def.id === 3 ? m.current.got : def.id === 6 ? m.current.stage + 1 : m.current.stage + 1;
+        $('mission-stage-fill').style.width = `${Math.min(100, (stageNow / stageTotal) * 100)}%`;
+        $('mission-next').textContent = def.next;
+      } else {
+        $('mission-chapter').textContent = 'FREE ROAM';
+        $('mission-name').textContent = 'Meridian Bay';
+        $('mission-objective').textContent = 'Drive to the next job marker or explore the city.';
+        $('mission-stage-fill').style.width = '0%';
+        $('mission-next').textContent = (() => {
+          // The next job: the current index when nothing has started
+          // yet, the one after it once a mission has been played.
+          const nextIdx = m.started ? m.currentIndex + 1 : m.currentIndex;
+          return nextIdx < m.defs.length
+            ? `NEXT: M${nextIdx + 1} ${m.defs[nextIdx].name}`
+            : 'Story complete — the city is yours.';
+        })();
       }
+
+      // Police response panel with named units.
+      const panel = policePanelData(G);
+      $('police-panel').style.display = G.police.wanted > 0 ? 'block' : 'none';
+      $('police-count').textContent = `${panel.count} UNIT${panel.count === 1 ? '' : 'S'}`;
+      $('police-units').innerHTML = panel.rows
+        .map((r) => `<div class="unit"><span>${r.name} · ${r.dist}m</span><span class="st">${r.status}</span></div>`)
+        .join('');
+      $('police-code').textContent = `${panel.code} · HEAT ${districtHeat(G, district)}${districtHeat(G, district) >= 5 ? ' · LOCKDOWN' : ''}`;
+
+      // Vitals.
+      $('health-num').textContent = Math.ceil(p.health);
+      $('health-fill').style.width = p.health + '%';
+      $('health-fill').style.background = p.health > 50 ? '#54d977' : p.health > 25 ? '#ffd34d' : '#ff5d47';
+      $('ammo').textContent = `AMMO ${G.combat.ammo}/12${G.combat.reloading > 0 ? ' · RELOADING' : ''}`;
+      $('map-street').textContent = `${streetAt(px, pz)} · ${district}`;
+
+      // Drive panel: weapons, speed, car, radio.
+      const car = p.inCar;
+      const speed = car ? Math.abs(car.speed) * 3.6 : Math.abs(p.speed) * 3.6;
+      $('speed').innerHTML = `${Math.round(speed)} <small>km/h</small>`;
+      $('car-name').textContent = car ? car.model.name : 'ON FOOT';
+      const cond = car ? car.condition : 100;
+      $('car-cond-fill').style.width = cond + '%';
+      $('car-cond-fill').style.background = cond > 50 ? '#7dff9a' : cond > 25 ? '#ffd34d' : '#ff5d47';
+      const station = RADIO_STATIONS[G.radioIndex % RADIO_STATIONS.length];
+      $('radio-line').textContent = station.name;
+      $('song-line').textContent = '♪ ' + station.songs[G.songIndex % station.songs.length];
+      const weapons = [
+        { name: 'FISTS', ammo: '∞', active: !car, locked: false },
+        { name: 'PISTOL', ammo: `${G.combat.ammo}/12`, active: !car, locked: false },
+        { name: 'SMG', ammo: '—', active: false, locked: true },
+        { name: 'RIFLE', ammo: '—', active: false, locked: true },
+      ];
+      $('weapons').innerHTML = weapons
+        .map((w) => `<div class="weapon${w.locked ? ' locked' : ''}${w.active ? ' active' : ''}"><b>${w.name}</b>${w.locked ? 'LOCKED' : w.ammo}</div>`)
+        .join('');
+      $('crosshair').style.display = !car && G.screen === 'play' ? 'block' : 'none';
+
+      this.drawMinimap(G, mctx, px, pz);
+      // Damage flash vignette via the vitals panel border.
+      $('vitals').style.borderColor = now - flashAt < 0.25 ? '#ff5d47' : 'rgba(255,255,255,0.14)';
+    },
+
+    drawMinimap(G, ctx, px, pz) {
+      const S = 184;
+      const scale = S / 340;
+      const toMap = (x, z) => [(x + 170) * scale, (z + 170) * scale];
+      ctx.clearRect(0, 0, S, S);
+      ctx.fillStyle = '#1d2b1d';
+      ctx.fillRect(0, 0, S, S);
+      // Sea + beach on the east.
+      ctx.fillStyle = '#1d6f8e';
+      ctx.fillRect((165 + 170) * scale, 0, S, S);
+      ctx.fillStyle = '#e3cf9e';
+      ctx.fillRect((140 + 170) * scale, 0, (165 - 140) * scale, S);
+      // Roads.
+      ctx.strokeStyle = '#3a3f46';
+      ctx.lineWidth = 5;
+      for (let v = -120; v <= 120; v += 40) {
+        ctx.beginPath();
+        ctx.moveTo(...toMap(v, -150));
+        ctx.lineTo(...toMap(v, 150));
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(...toMap(-150, v));
+        ctx.lineTo(...toMap(150, v));
+        ctx.stroke();
+      }
+      // Packages.
+      ctx.fillStyle = '#ffd34d';
+      for (const pkg of G.missions.packages) {
+        if (pkg.taken) continue;
+        const [mx, mz] = toMap(pkg.x, pkg.z);
+        ctx.fillRect(mx - 1.5, mz - 1.5, 3, 3);
+      }
+      // Mission beacon.
+      if (G.missions.beacon.visible) {
+        const [mx, mz] = toMap(G.missions.beacon.position.x, G.missions.beacon.position.z);
+        ctx.fillStyle = '#ffd34d';
+        ctx.beginPath();
+        ctx.arc(mx, mz, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      // Police blips.
+      ctx.fillStyle = '#ff4d4d';
+      for (const u of G.police.units) {
+        const [mx, mz] = toMap(u.x, u.z);
+        ctx.beginPath();
+        ctx.arc(mx, mz, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Traffic.
+      ctx.fillStyle = '#e8eef7';
+      for (const c of G.cars) {
+        if (c === G.player.inCar) continue;
+        const [mx, mz] = toMap(c.x, c.z);
+        ctx.fillRect(mx - 1, mz - 1, 2, 2);
+      }
+      // Player arrow.
+      const [mx, mz] = toMap(px, pz);
+      const heading = G.player.inCar ? G.player.inCar.heading : G.player.heading;
+      ctx.save();
+      ctx.translate(mx, mz);
+      ctx.rotate(heading);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(4.5, 5);
+      ctx.lineTo(-4.5, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      // North tick.
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px Arial';
+      ctx.fillText('N', S / 2 - 3, 11);
+    },
+
+    showScreen(id) {
+      for (const s of ['screen-title', 'screen-pause', 'screen-busted', 'screen-passed', 'screen-complete']) {
+        $(s).style.display = s === id ? 'flex' : 'none';
+      }
+    },
+    hideScreens() {
+      for (const s of ['screen-title', 'screen-pause', 'screen-busted', 'screen-passed', 'screen-complete']) {
+        $(s).style.display = 'none';
+      }
+    },
+    showPassed(data) {
+      $('passed-title').textContent = data.title;
+      $('passed-stars').textContent = '★'.repeat(data.stars) + '☆'.repeat(3 - data.stars);
+      $('passed-stats').textContent = data.stats;
+      $('passed-quote').textContent = data.quote;
+      $('passed-next').textContent = data.next;
+      this.showScreen('screen-passed');
+    },
+    showComplete(G) {
+      $('complete-stats').textContent = `Money ${formatMoney(G.money)} · Packages ${G.missions.packagesFound}/10 · Time ${formatTime(G.missions.stats.time)} · Max wanted ${G.missions.stats.maxWanted}★`;
+      this.showScreen('screen-complete');
     },
   };
+  return hud;
 }

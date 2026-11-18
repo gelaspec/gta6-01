@@ -1,133 +1,172 @@
-// Meridian Bay — every tuning number, colour and city constant in one place.
-// The city is a road grid: streets run north-south and east-west every 80 m,
-// roads 14 m wide, blocks 66 m square. The ocean lies east (positive x).
-// One unit is one metre; the simulation runs in fixed 1/60 s steps.
+// Meridian Bay — tuning, palette, names and world constants.
+// Every number the game balances on lives here so the other modules
+// stay small and readable.
 
-export const STEP = 1 / 60;
+export const CONFIG = {
+  // World layout: a 7x7 street grid, 40 m blocks, beach on the east edge.
+  block: 40,
+  roadHalf: 5,
+  gridMin: -120,
+  gridMax: 120,
+  beachX: 140,
+  seaX: 165,
+  pierEndX: 205,
 
-export const CITY = {
-  half: 280, // city spans -280..280 on both axes (roads at -240..240)
-  roads: [-240, -160, -80, 0, 80, 160, 240],
-  roadWidth: 14,
-  block: 66,
-  beachX: 296, // sand starts here
-  waterX: 322, // ocean starts here
-  pierZ: 40, // pier runs along z = 40, out into the ocean
-  pierEndX: 452,
-};
-
-export const PLAYER = {
-  radius: 0.55,
+  // Player
   walkSpeed: 6,
-  runSpeed: 10.5,
-  accel: 40,
+  runSpeed: 10,
   jumpSpeed: 8.5,
   gravity: 24,
-  health: 100,
+  playerHealth: 100,
+  pistolAmmo: 12,
+  pistolDamage: 34,
+  punchDamage: 18,
+  punchRange: 2.4,
+  shootRange: 70,
+
+  // Cars
+  carAccel: 26,
+  carBrake: 42,
+  carMaxSpeed: 46,
+  carReverseMax: 14,
+  carSteer: 1.9,
+  carGrip: 6.5,
+  handbrakeGrip: 2.2,
+  trafficSpeed: 11,
+  trafficCount: 14,
+  parkedCount: 12,
+
+  // Police and wanted
+  wantedMax: 5,
+  wantedDecaySeconds: 9,
+  policeCarSpeed: 40,
+  policeFootSpeed: 7.5,
+  policeSpawnRadius: 55,
+  heliWantedAt: 3,
+  bustDistance: 3.2,
+  bustSeconds: 2.5,
+
+  // Economy
+  startMoney: 250,
+  taxiFare: 120,
+  packageReward: 150,
+  missionPayouts: [400, 650, 900, 1500, 2400, 5000],
+  bustFine: 300,
+
+  // Pedestrians
+  pedCount: 26,
+  pedSpeed: 2.2,
+  pedFleeSpeed: 5.5,
+
+  // Clock: one game minute per real second, day starts 19:04.
+  clockStartMinutes: 19 * 60 + 4,
+  clockRate: 1,
 };
-
-export const CAR = {
-  accel: 16,
-  brake: 30,
-  reverseAccel: 10,
-  maxSpeed: 42,
-  maxReverse: 12,
-  steerMax: 0.55,
-  steerSpeed: 2.2,
-  drag: 0.35,
-  handbrakeDrag: 2.4,
-  radius: 2.3,
-};
-
-export const TRAFFIC_COUNT = 14;
-export const PARKED_COUNT = 12;
-export const PED_COUNT = 26;
-
-export const WANTED = {
-  stealCar: 1,
-  hitPed: 1,
-  shoot: 1,
-  killCop: 2,
-  decayDelay: 14, // seconds with no crime and no cop near before stars fall
-  decayPerSec: 0.12,
-  maxPoliceCars: 4,
-};
-
-export const PROTAGONIST = 'Cassian Rowe';
-export const FIXER = 'Inez Kade';
-
-// Vehicle classes: every car on the street is one of these, with its own
-// silhouette, name and HUD label — a sedan does not read as a van, a taxi
-// does not read as a cop car. Weights are the traffic mix (sedans common,
-// sports cars rare); police is never picked for traffic, only spawned.
-export const CAR_CLASSES = ['sedan', 'coupe', 'suv', 'van', 'taxi', 'sports'];
-export const CAR_CLASS_WEIGHTS = [
-  [0.32, 'sedan'], [0.16, 'coupe'], [0.16, 'suv'],
-  [0.12, 'van'], [0.10, 'taxi'], [0.14, 'sports'],
-];
-export const CAR_CLASS_LABEL = {
-  sedan: 'SEDAN', coupe: 'COUPE', suv: 'SUV', van: 'VAN',
-  taxi: 'TAXI', sports: 'SPORTS', police: 'MBPD',
-};
-export const CAR_NAMES_BY_CLASS = {
-  sedan: ['Sunset Cruiser', 'Bay Runner', 'Marlin Sedan', 'Coast Sedan'],
-  coupe: ['Marlin Coupe', 'Dune GT', 'Comet Coupe'],
-  suv: ['Harbor Hauler', 'Dune Runner', 'Pier Runner'],
-  van: ['Pelican Van', 'Dockside Van', 'Harbor Van'],
-  taxi: ['Meridian Cab', 'Bay Cab', 'Coast Taxi'],
-  sports: ['Comet GT', 'Dune GT', 'Sunset GT'],
-  police: ['MBPD Interceptor'],
-};
-
-export const RADIO_STATIONS = ['MERIDIAN FM 98.1', 'BAYWAVE 104.5', 'NEON NIGHTS 91.3'];
-
-export const MISSIONS = [
-  { id: 1, title: 'First Wheels', giver: 'Inez Kade', reward: 500, par: 120 },
-  { id: 2, title: 'Courier Run', giver: 'Inez Kade', reward: 800, par: 90 },
-  { id: 3, title: 'The Pickup', giver: 'Inez Kade', reward: 1000, par: 180 },
-  { id: 4, title: 'Heat', giver: 'Inez Kade', reward: 1500, par: 150 },
-  { id: 5, title: 'Pier Heist', giver: 'Inez Kade', reward: 2500, par: 240 },
-  { id: 6, title: 'The Meridian Job', giver: 'Inez Kade', reward: 10000, par: 300 },
-];
-
-export const PACKAGE_COUNT = 10;
-export const PACKAGE_REWARD = 250;
-
-export const SAVE_KEY = 'meridian-bay.save.v1';
 
 export const PALETTE = {
-  sky: 0x8ec9ee,
-  fog: 0xe3c69c,
-  sun: 0xffe2ac,
-  grass: 0x7d9b5e,
-  sand: 0xe8d5a4,
-  ocean: 0x2e7fa8,
-  oceanDeep: 0x1d5f86,
-  road: 0x3a3f46,
-  roadLine: 0xe8e4d2,
-  sidewalk: 0xb9b2a2,
-  building: [0xf2e8d8, 0xe8b48c, 0x9fc8c8, 0xe89a8a, 0xd8d2c4, 0xa8c8e8, 0xf0d060],
-  roof: 0x6a5a4a,
-  palmTrunk: 0x8a6a48,
-  palmLeaf: 0x3f8f4f,
-  pierWood: 0x9a7a52,
-  carPaint: [0xc23b2e, 0x2e6fc2, 0xe8c832, 0x3aa856, 0xeeeeee, 0x222222, 0x7a4fc2, 0xe87a2e],
-  policeWhite: 0xf2f2f2,
-  policeBlack: 0x1a1a22,
-  playerShirt: 0x2e8f86,
-  playerPants: 0x2a3440,
-  gangShirt: 0x8a2a2a,
-  copShirt: 0x24344e,
-  text: '#eef1f5',
-  muted: '#b8c0cc',
-  gold: '#f2c94c',
-  // Polish pass: neon shop signs, beach umbrellas, street furniture.
-  neon: [0xff5a5a, 0x35e0c8, 0xffc93c, 0xff7ad9, 0x7ab8ff],
-  umbrella: [0xe84a5f, 0xffc93c, 0x35e0c8, 0xff7a2e, 0xf2f2f2],
-  hydrant: 0xc23b2e,
-  bush: 0x4a7a3f,
-  signGreen: 0x2a6e3f,
-  benchWood: 0x7a5a3a,
+  skySunset: 0xff9a52,
+  skyNoon: 0x6fb7ff,
+  skyNight: 0x0b1026,
+  skyDawn: 0xffb27a,
+  sunSunset: 0xffb36b,
+  sunNoon: 0xfff2d8,
+  sunNight: 0x8fa8ff,
+  fogSunset: 0xf2a06b,
+  fogNoon: 0xa8c8e8,
+  fogNight: 0x0d1428,
+  sea: 0x1d6f8e,
+  sand: 0xe3cf9e,
+  grass: 0x5d8a4a,
+  asphalt: 0x2b2f36,
+  sidewalk: 0x9aa0a8,
+  buildingGlass: 0x2c3e55,
+  carColors: [0xc23b2e, 0x2e6fc2, 0xe8b93a, 0x3aa655, 0x8e44ad, 0xd8d8d8, 0x222831, 0xe67e22],
+  taxiYellow: 0xf2c230,
+  policeWhite: 0xe8ecf0,
+  policeBlack: 0x1c2330,
 };
 
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+export const DISTRICTS = [
+  { name: 'OLD PORT', x0: -140, x1: -40, z0: -140, z1: 140 },
+  { name: 'DOWNTOWN', x0: -40, x1: 40, z0: -140, z1: 140 },
+  { name: 'CALLE VERDE', x0: -140, x1: 40, z0: 40, z1: 140 },
+  { name: 'NORTHSIDE', x0: -40, x1: 140, z0: -140, z1: -40 },
+  { name: 'MARINA', x0: 40, x1: 140, z0: -40, z1: 140 },
+];
+
+export const STREETS = [
+  { name: 'COAST ROAD', vertical: true, at: 120 },
+  { name: 'PALM ROW', vertical: true, at: 80 },
+  { name: 'FLAMINGO ST', vertical: false, at: 80 },
+  { name: 'HARBOR AVE', vertical: true, at: 0 },
+  { name: 'MARINA BLVD', vertical: false, at: 0 },
+  { name: 'CALLE VERDE', vertical: false, at: 40 },
+  { name: 'PIER LANE', vertical: true, at: 40 },
+  { name: 'LIGHTHOUSE WAY', vertical: false, at: -80 },
+];
+
+export const LANDMARKS = [
+  { name: 'MERIDIAN BANK', x: -20, z: -20, w: 26, d: 18, h: 46 },
+  { name: 'PALM MOTEL', x: 60, z: 60, w: 22, d: 14, h: 16 },
+  { name: 'CASINO ROYALE', x: 20, z: 100, w: 28, d: 20, h: 30 },
+  { name: 'THE CANNERY', x: -100, z: 20, w: 24, d: 16, h: 14 },
+  { name: 'SURF SHACK', x: 130, z: -60, w: 12, d: 10, h: 8 },
+  { name: 'VELA MOTORS', x: 60, z: -100, w: 24, d: 16, h: 12 },
+  { name: 'COCO MOTEL', x: -60, z: 100, w: 20, d: 14, h: 15 },
+  { name: 'NEON GYM', x: 100, z: 20, w: 16, d: 14, h: 18 },
+];
+
+export const RADIO_STATIONS = [
+  { name: 'MERIDIAN FM 98.1', songs: ['Sunset Static — The Palms', 'Neon Drive — Cassia Blue', 'Bay Lights — The Breakers'] },
+  { name: 'BAYWAVE 104.5', songs: ['Tide Runner — Sol & the Keys', 'Golden Hour — Marina Vale', 'Pier Lights — The Gulls'] },
+  { name: 'NEON NIGHTS 91.3', songs: ['Midnight Chrome — Vex Nine', 'Glass City — Night Parade', 'Afterglow — Inez'] },
+];
+
+export const CAR_MODELS = [
+  { name: 'Comet GT', kind: 'sports', top: 52, accel: 32 },
+  { name: 'Vela Sedan', kind: 'sedan', top: 42, accel: 26 },
+  { name: 'Harbor Van', kind: 'van', top: 36, accel: 20 },
+  { name: 'City Taxi', kind: 'taxi', top: 44, accel: 26 },
+  { name: 'Cruiser', kind: 'police', top: 46, accel: 30 },
+];
+
+export const REP_RANKS = [
+  { at: 0, name: 'NOBODY' },
+  { at: 100, name: 'STREET SOLDIER' },
+  { at: 400, name: 'WHEELMAN' },
+  { at: 1000, name: 'HEAT SEEKER' },
+  { at: 2500, name: 'BAY LEGEND' },
+];
+
+export function districtAt(x, z) {
+  for (const d of DISTRICTS) {
+    if (x >= d.x0 && x < d.x1 && z >= d.z0 && z < d.z1) return d.name;
+  }
+  return x >= CONFIG.beachX ? 'THE PIER' : 'DOWNTOWN';
+}
+
+export function streetAt(x, z) {
+  let best = null;
+  let bestD = Infinity;
+  for (const s of STREETS) {
+    const d = s.vertical ? Math.abs(x - s.at) : Math.abs(z - s.at);
+    if (d < bestD) {
+      bestD = d;
+      best = s.name;
+    }
+  }
+  return best ?? 'PALM ROW';
+}
+
+export function repRank(rep) {
+  let current = REP_RANKS[0];
+  let next = null;
+  for (let i = 0; i < REP_RANKS.length; i++) {
+    if (rep >= REP_RANKS[i].at) current = REP_RANKS[i];
+    else {
+      next = REP_RANKS[i];
+      break;
+    }
+  }
+  return { current, next };
+}

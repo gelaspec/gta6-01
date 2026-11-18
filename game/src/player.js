@@ -1,173 +1,163 @@
-// Cassian Rowe on foot: a low-poly figure with a walk/run cycle, jump and
-// punch, moved by the camera-relative WASD input and kept out of buildings
-// by the city's collision boxes. Health, damage and the "busted" state live
-// here; money and missions live in the game state.
+// Cassian Rowe on foot: WASD movement relative to the camera, run,
+// jump, punch, and entering cars. The character is a simple articulated
+// figure built from boxes so it reads at any distance.
 
 import * as THREE from 'three';
-import { PLAYER } from './config.js';
-import { clampToCity, collideCircle } from './city.js';
+import { CONFIG } from './config.js';
+import { clamp, wrapAngle, angleLerp } from './random.js';
+import { pointBlocked } from './city.js';
 
-export function createPlayer(scene) {
-  const group = new THREE.Group();
-  const shirt = new THREE.MeshLambertMaterial({ color: 0x2e8f86 });
-  const pants = new THREE.MeshLambertMaterial({ color: 0x2a3440 });
-  const skin = new THREE.MeshLambertMaterial({ color: 0xd8a075 });
-  const hair = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
+const SKINS = [0xe8b98a, 0xc98d5f, 0x8a5a3b, 0xf0c8a0];
+const SHIRTS = [0x2f6fb2, 0x3aa655, 0xc23b2e, 0x8e44ad, 0xe8b93a, 0x2a2f38];
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), shirt);
-  torso.position.y = 1.08;
-  torso.castShadow = true;
-  group.add(torso);
-  // Open dark vest over the teal shirt, a belt, and shoes — Cassian reads
-  // as a person with a style, not a shirt-coloured block.
-  const vestMat = new THREE.MeshLambertMaterial({ color: 0x1e242e });
-  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.5, 0.38), vestMat);
-  vest.position.y = 1.14;
-  vest.castShadow = true;
-  group.add(vest);
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.36), new THREE.MeshLambertMaterial({ color: 0x14161a }));
-  belt.position.y = 0.74;
-  group.add(belt);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), skin);
-  head.position.y = 1.68;
-  head.castShadow = true;
-  group.add(head);
-  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), hair);
-  hairTop.position.y = 1.72;
-  group.add(hairTop);
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.72, 0.24), pants);
-  legL.position.set(-0.16, 0.36, 0);
-  legL.castShadow = true;
-  group.add(legL);
-  const legR = legL.clone();
-  legR.position.x = 0.16;
-  group.add(legR);
-  // Shoes ride on the legs, so they swing with the stride instead of
-  // floating when a leg lifts.
-  const shoeMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-  for (const leg of [legL, legR]) {
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.09, 0.32), shoeMat);
-    shoe.position.set(0, -0.315, 0.05);
-    leg.add(shoe);
+export function buildFigure(rng, opts = {}) {
+  const g = new THREE.Group();
+  const skin = new THREE.MeshLambertMaterial({ color: opts.skin ?? rng.pick(SKINS) });
+  const shirt = new THREE.MeshLambertMaterial({ color: opts.shirt ?? rng.pick(SHIRTS) });
+  const pants = new THREE.MeshLambertMaterial({ color: opts.pants ?? 0x2a2f38 });
+  const hair = new THREE.MeshLambertMaterial({ color: opts.hair ?? 0x1c1712 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.85, 0.4), shirt);
+  torso.position.y = 1.05;
+  g.add(torso);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.46, 0.42), skin);
+  head.position.y = 1.72;
+  g.add(head);
+  const hairM = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.46), hair);
+  hairM.position.y = 1.98;
+  g.add(hairM);
+  if (opts.hat) {
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.16, 10), new THREE.MeshLambertMaterial({ color: opts.hat }));
+    hat.position.y = 2.08;
+    g.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.05, 10), new THREE.MeshLambertMaterial({ color: opts.hat }));
+    brim.position.y = 2.0;
+    g.add(brim);
   }
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.2), shirt);
-  armL.position.set(-0.42, 1.08, 0);
-  armL.castShadow = true;
-  group.add(armL);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.62, 0.3), pants);
+  legL.position.set(-0.18, 0.31, 0);
+  g.add(legL);
+  const legR = legL.clone();
+  legR.position.x = 0.18;
+  g.add(legR);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.24), shirt);
+  armL.position.set(-0.48, 1.05, 0);
+  g.add(armL);
   const armR = armL.clone();
-  armR.position.x = 0.42;
-  group.add(armR);
-  scene.add(group);
+  armR.position.x = 0.48;
+  g.add(armR);
+  if (opts.bag) {
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.34, 0.12), new THREE.MeshLambertMaterial({ color: 0x6b4a2f }));
+    bag.position.set(0, 1.1, -0.28);
+    g.add(bag);
+  }
+  g.userData.parts = { torso, head, legL, legR, armL, armR };
+  return g;
+}
 
-  const state = {
-    group,
-    x: 8,
-    z: 128,
+export function createPlayer(scene, rng, x, z) {
+  const mesh = buildFigure(rng, { shirt: 0x2f6fb2, skin: 0xe8b98a, hair: 0x1c1712 });
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+  return {
+    mesh,
+    x,
+    z,
     y: 0,
     vy: 0,
-    yaw: Math.PI,
-    health: PLAYER.health,
-    onGround: true,
-    moving: false,
+    heading: Math.PI,
     speed: 0,
-    punchTimer: 0,
-    invulnerable: 0,
+    health: CONFIG.playerHealth,
+    grounded: true,
+    walkPhase: 0,
+    inCar: null,
+    punching: 0,
   };
+}
 
-  let walkPhase = 0;
+export function updatePlayer(G, dt) {
+  const p = G.player;
+  const input = G.input;
+  const rig = G.rig;
+  if (p.inCar) return;
+  if (G.screen !== 'play') return;
 
-  function update(dt, move, camYaw, city) {
-    if (state.invulnerable > 0) state.invulnerable -= dt;
-    if (state.punchTimer > 0) state.punchTimer -= dt;
-    const speed = move.run ? PLAYER.runSpeed : PLAYER.walkSpeed;
-    // Camera-relative movement: forward is where the camera looks.
-    const sin = Math.sin(camYaw);
-    const cos = Math.cos(camYaw);
-    const mx = sin * move.z + cos * move.x;
-    const mz = cos * move.z - sin * move.x;
-    const len = Math.hypot(mx, mz);
-    state.moving = len > 0.01;
-    if (state.moving) {
-      const tx = mx / len;
-      const tz = mz / len;
-      state.x += tx * speed * dt;
-      state.z += tz * speed * dt;
-      const targetYaw = Math.atan2(tx, tz);
-      let dy = targetYaw - state.yaw;
-      while (dy > Math.PI) dy -= Math.PI * 2;
-      while (dy < -Math.PI) dy += Math.PI * 2;
-      state.yaw += dy * Math.min(1, dt * 12);
-      state.speed = speed;
-      walkPhase += dt * speed * 1.6;
-    } else {
-      state.speed = 0;
-      walkPhase += dt * 1.2;
+  // Camera orbit from mouse drag.
+  rig.yaw -= input.dragX * 0.005;
+  rig.pitch = clamp(rig.pitch + input.dragY * 0.003, 0.08, 0.9);
+
+  let fx = 0;
+  let fz = 0;
+  if (input.keys.has('KeyW') || input.keys.has('ArrowUp')) fz += 1;
+  if (input.keys.has('KeyS') || input.keys.has('ArrowDown')) fz -= 1;
+  if (input.keys.has('KeyA') || input.keys.has('ArrowLeft')) fx -= 1;
+  if (input.keys.has('KeyD') || input.keys.has('ArrowRight')) fx += 1;
+  const moving = fx !== 0 || fz !== 0;
+  const run = input.keys.has('ShiftLeft') || input.keys.has('ShiftRight');
+  const speed = run ? CONFIG.runSpeed : CONFIG.walkSpeed;
+
+  if (moving) {
+    const len = Math.hypot(fx, fz);
+    fx /= len;
+    fz /= len;
+    const sin = Math.sin(rig.yaw);
+    const cos = Math.cos(rig.yaw);
+    const wx = fx * cos - fz * sin;
+    const wz = fx * sin + fz * cos;
+    const targetHeading = Math.atan2(wx, wz);
+    p.heading = angleLerp(p.heading, targetHeading, Math.min(1, dt * 12));
+    const nx = p.x + wx * speed * dt;
+    const nz = p.z + wz * speed * dt;
+    if (!pointBlocked(G.city.colliders, nx, p.z, 0.5)) p.x = nx;
+    if (!pointBlocked(G.city.colliders, p.x, nz, 0.5)) p.z = nz;
+    p.speed = speed;
+    p.walkPhase += dt * speed * 1.6;
+  } else {
+    p.speed = 0;
+  }
+
+  // Jump and gravity.
+  if (input.keys.has('Space') && p.grounded) {
+    p.vy = CONFIG.jumpSpeed;
+    p.grounded = false;
+  }
+  if (!p.grounded) {
+    p.vy -= CONFIG.gravity * dt;
+    p.y += p.vy * dt;
+    if (p.y <= 0) {
+      p.y = 0;
+      p.vy = 0;
+      p.grounded = true;
     }
-    // Jump and gravity.
-    if (move.jump && state.onGround) {
-      state.vy = PLAYER.jumpSpeed;
-      state.onGround = false;
-    }
-    if (!state.onGround) {
-      state.vy -= PLAYER.gravity * dt;
-      state.y += state.vy * dt;
-      if (state.y <= 0) {
-        state.y = 0;
-        state.vy = 0;
-        state.onGround = true;
-      }
-    }
-    // Collisions and bounds.
-    const fixed = collideCircle(city, state.x, state.z, PLAYER.radius);
-    state.x = fixed.x;
-    state.z = fixed.z;
-    const clamped = clampToCity(state.x, state.z);
-    state.x = clamped.x;
-    state.z = clamped.z;
-
-    // Pose: legs swing with the stride, arms counter-swing, punch extends one arm.
-    const swing = state.moving ? Math.sin(walkPhase) * 0.7 : 0;
-    legL.rotation.x = swing;
-    legR.rotation.x = -swing;
-    if (state.punchTimer > 0) {
-      armR.rotation.x = -1.5;
-      armL.rotation.x = 0.4;
-    } else {
-      armR.rotation.x = -swing * 0.8;
-      armL.rotation.x = swing * 0.8;
-    }
-    group.position.set(state.x, state.y, state.z);
-    group.rotation.y = state.yaw;
-    group.visible = true;
   }
 
-  function takeDamage(amount) {
-    if (state.invulnerable > 0) return false;
-    state.health = Math.max(0, state.health - amount);
-    state.invulnerable = 0.6;
-    return true;
+  // Walk swing + punch swing on the figure.
+  const parts = p.mesh.userData.parts;
+  const swing = moving ? Math.sin(p.walkPhase) * 0.55 : 0;
+  parts.legL.rotation.x = swing;
+  parts.legR.rotation.x = -swing;
+  parts.armL.rotation.x = -swing * 0.8;
+  parts.armR.rotation.x = swing * 0.8;
+  if (p.punching > 0) {
+    p.punching -= dt;
+    parts.armR.rotation.x = -1.6 * Math.max(0, p.punching / 0.28);
   }
 
-  function heal(amount) {
-    state.health = Math.min(PLAYER.health, state.health + amount);
-  }
+  // Keep inside the map.
+  if (p.x < -150) p.x = -150;
+  if (p.x > 205) p.x = 205;
+  if (p.z < -150) p.z = -150;
+  if (p.z > 150) p.z = 150;
 
-  function punch() {
-    state.punchTimer = 0.35;
-  }
+  p.mesh.position.set(p.x, p.y, p.z);
+  p.mesh.rotation.y = p.heading;
+  rig.mode = 'follow';
+}
 
-  function teleport(x, z, yaw) {
-    state.x = x;
-    state.z = z;
-    state.y = 0;
-    state.vy = 0;
-    if (yaw !== undefined) state.yaw = yaw;
-    group.position.set(x, 0, z);
-    group.rotation.y = state.yaw;
-  }
-
-  // Return the live state object itself (not a spread copy): the game reads
-  // player.x / player.yaw / player.health from outside, so those must stay
-  // the same fields update() and teleport() write.
-  return Object.assign(state, { update, takeDamage, heal, punch, teleport });
+export function damagePlayer(G, amount) {
+  const p = G.player;
+  if (G.screen !== 'play' || p.health <= 0) return;
+  p.health = Math.max(0, p.health - amount);
+  G.hud.flashDamage();
+  if (p.health <= 0) G.events.push({ type: 'wasted' });
 }

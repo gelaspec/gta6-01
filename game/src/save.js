@@ -1,37 +1,46 @@
-// Save: one small JSON record in localStorage — money, the mission reached,
-// and the hidden packages found. Nothing else leaves the machine.
+// Save: money, mission progress, packages and REP in localStorage.
+// Loading a save never blocks the game — a bad or missing save just
+// starts a fresh story.
 
-import { SAVE_KEY } from './config.js';
+const KEY = 'meridian-bay-save-v3';
 
 export function loadSave() {
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
-    if (!raw) return { money: 250, mission: 0, packages: [] };
+    const raw = window.localStorage.getItem(KEY);
+    if (!raw) return null;
     const data = JSON.parse(raw);
-    return {
-      money: typeof data.money === 'number' ? data.money : 250,
-      // Clamp the mission: a corrupt or hand-edited save can never jump
-      // past the story (0-6) or into a negative mission.
-      mission: typeof data.mission === 'number' ? Math.max(0, Math.min(6, Math.floor(data.mission))) : 0,
-      packages: Array.isArray(data.packages) ? data.packages : [],
-    };
+    if (typeof data !== 'object' || data === null) return null;
+    return data;
   } catch {
-    return { money: 250, mission: 0, packages: [] };
+    return null;
   }
 }
 
-export function writeSave(data) {
-  try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-  } catch {
-    // Storage can be off (private windows): progress then lasts this visit only.
-  }
-}
-
-export function clearSave() {
-  try {
-    window.localStorage.removeItem(SAVE_KEY);
-  } catch {
-    // Ignore.
-  }
+export function makeSaveApi(G) {
+  return {
+    save() {
+      try {
+        const data = {
+          money: Math.round(G.money),
+          rep: G.rep,
+          missionIndex: G.missions.currentIndex,
+          packagesFound: G.missions.packagesFound,
+          packagesTaken: G.missions.packages.map((p) => p.taken),
+          heat: G.missions.heat,
+          clockMinutes: Math.round(G.clockMinutes),
+          savedAt: Date.now(),
+        };
+        window.localStorage.setItem(KEY, JSON.stringify(data));
+      } catch {
+        // Storage may be unavailable in some contexts; the game goes on.
+      }
+    },
+    clear() {
+      try {
+        window.localStorage.removeItem(KEY);
+      } catch {
+        // Ignore.
+      }
+    },
+  };
 }
