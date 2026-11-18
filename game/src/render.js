@@ -148,6 +148,7 @@ export function createRenderer(canvas) {
   }
 
   let shakeAmount = 0;
+  let shakeTime = 0;
   const camPos = new THREE.Vector3(0, 12, 24);
   const lookAt = new THREE.Vector3(0, 1, 0);
   const tmp = new THREE.Vector3();
@@ -186,11 +187,15 @@ export function createRenderer(canvas) {
       lookAt.y += (ty + 1.2 - lookAt.y) * k;
       lookAt.z += (tz - lookAt.z) * k;
       shakeAmount = Math.max(0, shakeAmount - dt * 2.2);
+      shakeTime += dt;
       const sh = shakeAmount;
+      // Deterministic jitter: a wobble from the running clock, so a shake
+      // looks the same every run instead of depending on Math.random().
+      const jt = shakeTime * 37.0;
       camera.position.set(
-        camPos.x + (Math.random() - 0.5) * sh,
-        camPos.y + (Math.random() - 0.5) * sh * 0.6,
-        camPos.z + (Math.random() - 0.5) * sh,
+        camPos.x + Math.sin(jt) * sh * 0.5,
+        camPos.y + Math.sin(jt * 1.7) * sh * 0.3,
+        camPos.z + Math.cos(jt * 1.3) * sh * 0.5,
       );
       tmp.copy(lookAt);
       camera.lookAt(tmp);
