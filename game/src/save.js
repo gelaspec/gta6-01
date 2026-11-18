@@ -2,7 +2,7 @@
 // Loading a save never blocks the game — a bad or missing save just
 // starts a fresh story.
 
-const KEY = 'meridian-bay-save-v3';
+const KEY = 'meridian-bay-save-v4';
 
 export function loadSave() {
   try {

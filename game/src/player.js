@@ -1,6 +1,8 @@
 // Cassian Rowe on foot: WASD movement relative to the camera, run,
-// jump, punch, and entering cars. The character is a simple articulated
-// figure built from boxes so it reads at any distance.
+// jump, punch, and entering cars. The character is a simple
+// articulated figure built from boxes so it reads at any distance.
+// v4 gives Cassian a bright jacket so the hero pops against the
+// lighter roads.
 
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
@@ -8,7 +10,7 @@ import { clamp, wrapAngle, angleLerp } from './random.js';
 import { pointBlocked } from './city.js';
 
 const SKINS = [0xe8b98a, 0xc98d5f, 0x8a5a3b, 0xf0c8a0];
-const SHIRTS = [0x2f6fb2, 0x3aa655, 0xc23b2e, 0x8e44ad, 0xe8b93a, 0x2a2f38];
+const SHIRTS = [0xff2e88, 0x2ec5ff, 0x7dff5e, 0xffd60a, 0x2f6fb2, 0xa55cff];
 
 export function buildFigure(rng, opts = {}) {
   const g = new THREE.Group();
@@ -27,10 +29,11 @@ export function buildFigure(rng, opts = {}) {
   hairM.position.y = 1.98;
   g.add(hairM);
   if (opts.hat) {
-    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.16, 10), new THREE.MeshLambertMaterial({ color: opts.hat }));
+    const hatMat = new THREE.MeshLambertMaterial({ color: opts.hat });
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.16, 10), hatMat);
     hat.position.y = 2.08;
     g.add(hat);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.05, 10), new THREE.MeshLambertMaterial({ color: opts.hat }));
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.05, 10), hatMat);
     brim.position.y = 2.0;
     g.add(brim);
   }
@@ -56,7 +59,7 @@ export function buildFigure(rng, opts = {}) {
 }
 
 export function createPlayer(scene, rng, x, z) {
-  const mesh = buildFigure(rng, { shirt: 0x2f6fb2, skin: 0xe8b98a, hair: 0x1c1712 });
+  const mesh = buildFigure(rng, { shirt: 0xff2e88, skin: 0xe8b98a, hair: 0x1c1712 });
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   return {

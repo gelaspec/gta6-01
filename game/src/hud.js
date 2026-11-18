@@ -136,15 +136,15 @@ export function createHud() {
       const scale = S / 340;
       const toMap = (x, z) => [(x + 170) * scale, (z + 170) * scale];
       ctx.clearRect(0, 0, S, S);
-      ctx.fillStyle = '#1d2b1d';
+      ctx.fillStyle = '#24361f';
       ctx.fillRect(0, 0, S, S);
       // Sea + beach on the east.
-      ctx.fillStyle = '#1d6f8e';
+      ctx.fillStyle = '#2a9db5';
       ctx.fillRect((165 + 170) * scale, 0, S, S);
-      ctx.fillStyle = '#e3cf9e';
+      ctx.fillStyle = '#efd9a8';
       ctx.fillRect((140 + 170) * scale, 0, (165 - 140) * scale, S);
       // Roads.
-      ctx.strokeStyle = '#3a3f46';
+      ctx.strokeStyle = '#565b66';
       ctx.lineWidth = 5;
       for (let v = -120; v <= 120; v += 40) {
         ctx.beginPath();

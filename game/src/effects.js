@@ -53,7 +53,7 @@ function tickPool(pool, dt) {
 
 export function createEffects(scene) {
   return {
-    smoke: makePool(scene, 120, 0x9aa0a8, 1.6),
+    smoke: makePool(scene, 120, 0xb9bfc9, 1.6),
     sparks: makePool(scene, 80, 0xffc46b, 0.7),
     flash: makePool(scene, 40, 0xfff2b0, 1.1),
   };

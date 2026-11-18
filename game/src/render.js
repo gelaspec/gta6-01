@@ -1,35 +1,36 @@
-// Renderer, third-person camera and time-of-day lighting.
-// Four presets (sunset, noon, night, dawn) drive the sun, sky, fog and
-// window glow, so every screenshot can carry its own hour.
+// Renderer, third-person chase camera and time-of-day lighting.
+// Four presets (sunset, noon, night, dawn) drive the sun, sky, fog
+// and window glow. v4 turns the exposure up and keeps the golden
+// hour bright — the cover frame has to read vivid, not murky.
 
 import * as THREE from 'three';
 import { PALETTE } from './config.js';
-import { clamp, lerp, wrapAngle } from './random.js';
+import { clamp } from './random.js';
 
 export const TIME_PRESETS = {
   sunset: {
-    sunColor: 0xffb36b, sunIntensity: 2.4, sunPos: [-60, 26, -90],
-    sky: 0xff9a52, fog: 0xf2a06b, fogNear: 90, fogFar: 420,
-    hemiSky: 0xffc98a, hemiGround: 0x4a3a2a, hemiIntensity: 0.75,
-    windowGlow: 0.25, lampGlow: 0.4, ambient: 0.35,
+    sunColor: 0xffc46b, sunIntensity: 2.8, sunPos: [-60, 26, -90],
+    sky: 0xffb45e, fog: 0xf7b478, fogNear: 90, fogFar: 420,
+    hemiSky: 0xffd29a, hemiGround: 0x5a4a38, hemiIntensity: 0.9,
+    windowGlow: 0.3, lampGlow: 0.4, ambient: 0.45,
   },
   noon: {
-    sunColor: 0xfff2d8, sunIntensity: 3.0, sunPos: [40, 120, 30],
-    sky: 0x6fb7ff, fog: 0xa8c8e8, fogNear: 120, fogFar: 520,
-    hemiSky: 0xbfe3ff, hemiGround: 0x5a6a4a, hemiIntensity: 0.9,
-    windowGlow: 0.0, lampGlow: 0.0, ambient: 0.5,
+    sunColor: 0xfff2d8, sunIntensity: 3.2, sunPos: [40, 120, 30],
+    sky: 0x7cc0ff, fog: 0xb8d4f0, fogNear: 120, fogFar: 520,
+    hemiSky: 0xcfe8ff, hemiGround: 0x6a7a58, hemiIntensity: 1.0,
+    windowGlow: 0.0, lampGlow: 0.0, ambient: 0.55,
   },
   night: {
-    sunColor: 0x8fa8ff, sunIntensity: 0.55, sunPos: [-40, 80, -60],
-    sky: 0x0b1026, fog: 0x0d1428, fogNear: 70, fogFar: 320,
-    hemiSky: 0x2a3a66, hemiGround: 0x141018, hemiIntensity: 0.5,
-    windowGlow: 0.85, lampGlow: 1.0, ambient: 0.22,
+    sunColor: 0x9db4ff, sunIntensity: 0.7, sunPos: [-40, 80, -60],
+    sky: 0x141c3a, fog: 0x141a30, fogNear: 70, fogFar: 320,
+    hemiSky: 0x35447a, hemiGround: 0x1c1420, hemiIntensity: 0.6,
+    windowGlow: 0.9, lampGlow: 1.0, ambient: 0.3,
   },
   dawn: {
-    sunColor: 0xffc07a, sunIntensity: 2.0, sunPos: [90, 22, -70],
-    sky: 0xffb27a, fog: 0xe8a06b, fogNear: 100, fogFar: 460,
-    hemiSky: 0xffd0a0, hemiGround: 0x4a4030, hemiIntensity: 0.7,
-    windowGlow: 0.35, lampGlow: 0.5, ambient: 0.32,
+    sunColor: 0xffc07a, sunIntensity: 2.3, sunPos: [90, 22, -70],
+    sky: 0xffc07a, fog: 0xf0a870, fogNear: 100, fogFar: 460,
+    hemiSky: 0xffd8b0, hemiGround: 0x54483a, hemiIntensity: 0.85,
+    windowGlow: 0.4, lampGlow: 0.5, ambient: 0.4,
   },
 };
 
@@ -39,7 +40,7 @@ export function createRenderer(canvas) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.15;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(PALETTE.skySunset);
@@ -47,15 +48,15 @@ export function createRenderer(canvas) {
 
   const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
 
-  const sun = new THREE.DirectionalLight(0xffb36b, 2.4);
+  const sun = new THREE.DirectionalLight(0xffc46b, 2.8);
   sun.position.set(-60, 26, -90);
   scene.add(sun);
-  const hemi = new THREE.HemisphereLight(0xffc98a, 0x4a3a2a, 0.75);
+  const hemi = new THREE.HemisphereLight(0xffd29a, 0x5a4a38, 0.9);
   scene.add(hemi);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.45);
   scene.add(ambient);
 
-  // Big gradient sky dome so the horizon never reads as flat grey.
+  // Gradient sky dome so the horizon never reads as flat grey.
   const skyGeo = new THREE.SphereGeometry(700, 16, 12);
   const skyMat = new THREE.MeshBasicMaterial({
     color: PALETTE.skySunset,
@@ -68,14 +69,14 @@ export function createRenderer(canvas) {
   // Low sun disc that reads in golden-hour frames.
   const sunDisc = new THREE.Mesh(
     new THREE.CircleGeometry(26, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffe0a0, fog: false }),
+    new THREE.MeshBasicMaterial({ color: 0xffe8b0, fog: false }),
   );
   sunDisc.position.set(-320, 90, -480);
   sunDisc.lookAt(0, 0, 0);
   scene.add(sunDisc);
 
-  // A few drifting clouds.
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+  // Drifting clouds.
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
   const clouds = [];
   for (let i = 0; i < 9; i++) {
     const cloud = new THREE.Group();
@@ -108,11 +109,11 @@ export function applyTimeOfDay(view, presetName, city) {
   view.hemi.groundColor.setHex(p.hemiGround);
   view.hemi.intensity = p.hemiIntensity;
   view.ambient.intensity = p.ambient;
-  view.sunDisc.material.color.setHex(presetName === 'night' ? 0xdfe8ff : 0xffe0a0);
+  view.sunDisc.material.color.setHex(presetName === 'night' ? 0xdfe8ff : 0xffe8b0);
   view.sunDisc.visible = presetName !== 'noon';
   if (city) {
     for (const m of city.windowMats) m.emissiveIntensity = p.windowGlow;
-    for (const l of city.lamps) l.material.color.setHex(p.lampGlow > 0.5 ? 0xffe9a8 : 0x8a8f96);
+    for (const l of city.lamps) l.material.color.setHex(p.lampGlow > 0.5 ? 0xffe9a8 : 0x9aa0a8);
   }
 }
 
@@ -131,14 +132,14 @@ export function createCameraRig() {
 // Third-person camera: behind the focus point, lower and closer when
 // driving (the chase look the top entries use), higher when on foot.
 export function updateCamera(rig, camera, focus, dt, time) {
-  const dist = rig.mode === 'chase' ? 7.2 : rig.distance;
-  const height = rig.mode === 'chase' ? 3.1 : 4.6;
-  const pitch = rig.mode === 'chase' ? 0.24 : rig.pitch;
   if (rig.mode === 'fixed' && rig.fixedPos) {
     camera.position.set(rig.fixedPos.x, rig.fixedPos.y, rig.fixedPos.z);
     camera.lookAt(rig.fixedLook.x, rig.fixedLook.y, rig.fixedLook.z);
     return;
   }
+  const dist = rig.mode === 'chase' ? 8.2 : rig.distance;
+  const height = rig.mode === 'chase' ? 3.4 : 4.6;
+  const pitch = rig.mode === 'chase' ? 0.24 : rig.pitch;
   const bx = focus.x - Math.sin(rig.yaw) * Math.cos(pitch) * dist;
   const bz = focus.z - Math.cos(rig.yaw) * Math.cos(pitch) * dist;
   const by = focus.y + height + Math.sin(pitch) * dist * 0.4;
@@ -146,7 +147,10 @@ export function updateCamera(rig, camera, focus, dt, time) {
   const sx = s > 0.001 ? (Math.sin(time * 61) + Math.sin(time * 47)) * 0.5 * s : 0;
   const sy = s > 0.001 ? (Math.cos(time * 53) + Math.sin(time * 59)) * 0.5 * s : 0;
   camera.position.set(bx + sx, by + sy, bz);
-  camera.lookAt(focus.x + sx * 0.4, focus.y + 1.6, focus.z);
+  // In chase mode look a touch lower so the whole hero car sits in the
+  // middle band of the frame, clear of the bottom-centre dialog box.
+  const lookY = focus.y + (rig.mode === 'chase' ? 1.5 : 1.6);
+  camera.lookAt(focus.x + sx * 0.4, lookY, focus.z);
   rig.shake = Math.max(0, rig.shake - dt * 1.8);
 }
 

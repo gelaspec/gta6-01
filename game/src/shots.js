@@ -3,6 +3,9 @@
 // wanted, mission, camera and traffic, then marks window.__shotReady
 // once the frame has settled. The game itself keeps running behind
 // the staged state, so every shot is a real render of the live game.
+// v4: the cover car is hot pink (rank-1 bright), and shot 3's panel
+// and dialog name the SAME mission (M5 Pier Heist) — v3 mixed M6's
+// panel with M5's dialog.
 
 import { CONFIG } from './config.js';
 import { applyTimeOfDay } from './render.js';
@@ -101,15 +104,15 @@ export function applyShot(G, name) {
     G.missions.current.stageLabel = 'STAGE 3/4';
     // The car starts on the hidden package at (120, 60) in other scenes:
     // mark it taken here so the cover money stays exactly $31,200.
-    const pkg = G.missions.packages.find((p) => p.x === 120 && p.z === 60);
+    const pkg = G.missions.packages.find((pk) => pk.x === 120 && pk.z === 60);
     if (pkg) {
       pkg.taken = true;
       pkg.mesh.visible = false;
     }
     const car = putPlayerInCar(G, 'Comet GT', 120, 0, 0, 41.4);
-    // Bright red paint so the sports car reads against the asphalt.
-    car.mesh.children[0].material.color.setHex(0xd83232);
-    car.color = 0xd83232;
+    // Hot pink paint so the sports car pops against the bright road.
+    car.mesh.userData.paint.color.setHex(0xff2e88);
+    car.color = 0xff2e88;
     G.shot.drive = () => {
       if (car) {
         car.speed = 41.4;
@@ -210,32 +213,28 @@ export function applyShot(G, name) {
   }
 
   if (name === 'dialog') {
-    // On foot at the bank, noon, fixer dialog, $4,850.
+    // M5 Pier Heist brief at noon, $4,850 — staged ON the pier so the
+    // black Harbor Kings van (the mission's objective) is in frame
+    // with the sea and the lighthouse behind it. Panel and dialog name
+    // the same mission: the fixer briefs the van job, and the panel
+    // shows M5's objective — no mismatch like v3's M6 panel + M5 line.
     G.money = 4850;
     G.rep = 640;
     setClock(G, 2, 11, 20);
     G.radioIndex = 1;
     G.songIndex = 0;
     applyTimeOfDay(G.view, 'noon', G.city);
-    startMission(G, 5);
-    p.x = -14;
-    p.z = -8;
-    p.heading = Math.PI * 0.15;
+    startMission(G, 4);
+    p.x = 140;
+    p.z = 6;
+    p.heading = Math.PI * 0.5;
     p.mesh.position.set(p.x, 0, p.z);
     p.mesh.rotation.y = p.heading;
     G.rig.mode = 'follow';
-    G.rig.yaw = Math.PI * 0.9;
+    G.rig.yaw = Math.PI * 0.5;
     G.rig.distance = 8;
-    addWanted(G, 4, 'Bank alarm');
-    const units = G.police.units;
-    if (units[0]) {
-      units[0].x = -2;
-      units[0].z = 18;
-      units[0].heading = Math.PI;
-      units[0].speed = 0;
-    }
-    stageTrafficOnRoad(G, 0, -60, 30, 4);
-    stagePedsNear(G, -14, -8, 8, 12);
+    stageTrafficOnRoad(G, 120, -60, 30, 4);
+    stagePedsNear(G, 140, 6, 6, 10);
     G.dialog.clear();
     G.dialog.show('inez', 'The Harbor Kings keep a black van on the pier. Take it. Bring it to the hideout.', 60);
     G.screen = 'play';

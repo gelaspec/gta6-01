@@ -1,7 +1,7 @@
 // WebAudio synth: engine hum, sirens, gunshots, pickups and a small
 // synthwave loop. Everything is generated — no audio files, no network.
-// The context starts on the first user gesture; headless runs stay silent
-// instead of throwing.
+// The context starts on the first user gesture; headless runs stay
+// silent instead of throwing.
 
 export function createAudio() {
   const audio = {

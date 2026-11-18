@@ -1,6 +1,6 @@
-// Seeded random numbers (mulberry32) plus small helpers.
-// Every deterministic placement in the city and every shot scene
-// draws from one of these, so seed=1 always stages the same frame.
+// Meridian Bay — seeded randomness and small math/format helpers.
+// One mulberry32 stream per seed, so seed=1 always stages the same
+// city, the same traffic and the same screenshot frames.
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -36,7 +36,9 @@ export function makeRng(seed) {
 }
 
 export function clamp(value, min, max) {
-  return value < min ? min : value > max ? max : value;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
 }
 
 export function lerp(a, b, t) {

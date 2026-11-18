@@ -1,6 +1,6 @@
-// Pedestrians: they stroll the sidewalks, chat in place, and flee from
-// gunfire, crashes and speeding cars. Each one is a small articulated
-// figure with its own colours, height and accessories.
+// Pedestrians: they stroll the sidewalks, chat in place, and flee
+// from gunfire, crashes and speeding cars. Each one is a small
+// articulated figure with its own colours, height and accessories.
 
 import * as THREE from 'three';
 import { CONFIG } from './config.js';

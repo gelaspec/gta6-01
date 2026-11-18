@@ -1,5 +1,5 @@
-// Keyboard + mouse input. Keys are tracked by code so layouts do not
-// matter; mouse drag orbits the camera, click shoots when armed.
+// Keyboard + mouse input. Keys are tracked by code so layouts do
+// not matter; mouse drag orbits the camera, click shoots when armed.
 
 export function createInput(canvas) {
   const input = {

@@ -215,7 +215,7 @@ function completeMission(G) {
     title: `M${def.id}: ${def.name} — PASSED`,
     stars,
     stats: `Payout +${formatMoney(def.payout)} · Time ${Math.floor(m.stats.time / 60)}:${String(Math.floor(m.stats.time % 60)).padStart(2, '0')} · Max wanted ${'★'.repeat(m.stats.maxWanted)}${'☆'.repeat(5 - m.stats.maxWanted)} · Packages ${m.packagesFound}/10`,
-    quote: `${def.id <= PASSED_QUOTES.length ? 'Inez Kade' : 'Inez Kade'}: "${PASSED_QUOTES[def.id - 1]}"`,
+    quote: `Inez Kade: "${PASSED_QUOTES[def.id - 1]}"`,
     next: def.next,
   });
   G.screen = 'passed';

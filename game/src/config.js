@@ -1,6 +1,8 @@
-// Meridian Bay — tuning, palette, names and world constants.
-// Every number the game balances on lives here so the other modules
-// stay small and readable.
+// Meridian Bay — tuning numbers, the BRIGHT v4 palette and the
+// world constants (districts, streets, landmarks, radio, cars, REP).
+// v4 palette: warm light-grey asphalt, vivid car paint, turquoise sea
+// and a golden sky — the user said v3 looked too dark next to the
+// top-20 covers, so every surface in v4 is a stop brighter.
 
 export const CONFIG = {
   // World layout: a 7x7 street grid, 40 m blocks, beach on the east edge.
@@ -12,7 +14,7 @@ export const CONFIG = {
   seaX: 165,
   pierEndX: 205,
 
-  // Player
+  // Player on foot
   walkSpeed: 6,
   runSpeed: 10,
   jumpSpeed: 8.5,
@@ -64,26 +66,41 @@ export const CONFIG = {
 };
 
 export const PALETTE = {
-  skySunset: 0xff9a52,
-  skyNoon: 0x6fb7ff,
-  skyNight: 0x0b1026,
-  skyDawn: 0xffb27a,
-  sunSunset: 0xffb36b,
+  skySunset: 0xffb45e,
+  skyNoon: 0x7cc0ff,
+  skyNight: 0x141c3a,
+  skyDawn: 0xffc07a,
+  sunSunset: 0xffc46b,
   sunNoon: 0xfff2d8,
-  sunNight: 0x8fa8ff,
-  fogSunset: 0xf2a06b,
-  fogNoon: 0xa8c8e8,
-  fogNight: 0x0d1428,
-  sea: 0x1d6f8e,
-  sand: 0xe3cf9e,
-  grass: 0x5d8a4a,
-  asphalt: 0x2b2f36,
-  sidewalk: 0x9aa0a8,
-  buildingGlass: 0x2c3e55,
-  carColors: [0xc23b2e, 0x2e6fc2, 0xe8b93a, 0x3aa655, 0x8e44ad, 0xd8d8d8, 0x222831, 0xe67e22],
-  taxiYellow: 0xf2c230,
-  policeWhite: 0xe8ecf0,
-  policeBlack: 0x1c2330,
+  sunNight: 0x9db4ff,
+  fogSunset: 0xf7b478,
+  fogNoon: 0xb8d4f0,
+  fogNight: 0x141a30,
+  sea: 0x2a9db5,
+  sand: 0xefd9a8,
+  grass: 0x6fae56,
+  // v4 headline: the road is a warm light grey, not near-black.
+  asphalt: 0x6e7480,
+  sidewalk: 0xb9bfc9,
+  buildingGlass: 0x3a5a78,
+  carColors: [
+    0xff2e88, // hot pink — the cover car's paint
+    0xff3b30, // bright red
+    0xffd60a, // sunny yellow
+    0x7dff5e, // lime
+    0x2ec5ff, // cyan
+    0xff7a1a, // orange
+    0xa55cff, // violet
+    0xf2f2f2, // white
+  ],
+  taxiYellow: 0xffd60a,
+  policeWhite: 0xf2f4f8,
+  policeBlack: 0x232a38,
+  // Neon sign inks for the brighter storefronts.
+  neonPink: 0xff4da6,
+  neonCyan: 0x33e0ff,
+  neonYellow: 0xffe14d,
+  neonLime: 0x9dff57,
 };
 
 export const DISTRICTS = [

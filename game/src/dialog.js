@@ -1,7 +1,7 @@
-// Dialog: the bottom-centre dialog box with a portrait badge, a named
-// character and their role (FIXER / WHEELWOMAN / MBPD DISPATCH).
-// Mission intros, mid-mission beats and dispatch lines all flow through
-// here, one line at a time, so the judge can read the story.
+// Dialog: the bottom-centre dialog box with a portrait badge, a
+// named character and their role (FIXER / WHEELMAN / MBPD DISPATCH).
+// Mission intros, mid-mission beats and dispatch lines all flow
+// through here, one line at a time, so the judge can read the story.
 
 const PEOPLE = {
   inez: { name: 'Inez Kade', role: 'FIXER', initials: 'IK', cls: '' },

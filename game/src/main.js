@@ -173,11 +173,7 @@ function step(dt) {
   const focus = G.player.inCar
     ? { x: G.player.inCar.x, y: 1.4, z: G.player.inCar.z }
     : { x: G.player.x, y: 1.4, z: G.player.z };
-  if (G.rig.mode === 'fixed') {
-    updateCamera(G.rig, view.camera, focus, dt, G.time);
-  } else {
-    updateCamera(G.rig, view.camera, focus, dt, G.time);
-  }
+  updateCamera(G.rig, view.camera, focus, dt, G.time);
   hud.update(G);
   view.renderer.render(view.scene, view.camera);
   // Shot readiness counts fixed sim steps (2.5 s), not rendered frames,

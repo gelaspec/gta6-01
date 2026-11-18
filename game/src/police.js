@@ -44,12 +44,12 @@ export function createPolice(scene, rng) {
   );
   tail.position.set(0, 0.2, -4);
   heliGroup.add(tail);
+  // Spotlight cone: apex at the helicopter, wide base on the road
+  // below. A cone's apex is its top, so it hangs unrotated.
   const spot = new THREE.Mesh(
     new THREE.ConeGeometry(4.5, 20, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
   );
-  // No rotation: the cone's apex sits at the helicopter and its wide
-  // base opens onto the road below, like a real spotlight.
   spot.position.y = -11;
   heliGroup.add(spot);
   heliGroup.visible = false;
@@ -78,7 +78,7 @@ function spawnUnit(G) {
   const x = px + Math.cos(angle) * CONFIG.policeSpawnRadius;
   const z = pz + Math.sin(angle) * CONFIG.policeSpawnRadius;
   const model = { name: 'Cruiser', kind: 'police', top: 46, accel: 30 };
-  const mesh = buildCarMesh(G.rng, model, 0xe8ecf0);
+  const mesh = buildCarMesh(G.rng, model, 0xf2f4f8);
   mesh.position.set(x, 0, z);
   G.view.scene.add(mesh);
   const unit = {
@@ -167,7 +167,7 @@ export function updatePolice(G, dt) {
     // Ram when close, pursue otherwise; one unit tries to cut ahead.
     const isBlocker = pol.units.indexOf(u) === 1 && d < 40;
     const targetHeading = isBlocker ? want + Math.PI * 0.35 : want;
-    let turn = 2.4;
+    const turn = 2.4;
     u.heading += clamp(((targetHeading - u.heading + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -turn * dt, turn * dt);
     const targetSpeed = d > 60 ? CONFIG.policeCarSpeed : CONFIG.policeCarSpeed * 0.85;
     u.speed += (targetSpeed - u.speed) * Math.min(1, dt * 1.2);
@@ -212,8 +212,8 @@ export function updatePolice(G, dt) {
     }
   }
 
-  // Helicopter: hovers ahead-above the player, rotor spinning, spotlight
-  // on — ahead so the chase camera sees it in frame.
+  // Helicopter: hovers ahead-above the player, rotor spinning,
+  // spotlight on — ahead so the chase camera sees it in frame.
   if (pol.heliActive && pol.wanted >= CONFIG.heliWantedAt) {
     pol.heli.visible = true;
     pol.heli.position.set(px + 12, 20, pz + 70);

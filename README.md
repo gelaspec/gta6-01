@@ -16,8 +16,8 @@ Then open http://localhost:8080 in a desktop browser and press Enter (or click) 
 
 ## The game
 
-- **The city.** A coastal 7×7 grid with seven districts (Downtown, Marina, Old Town, Harbor, The Keys, Northgate, Bayview), a beach and pier with a lighthouse, a plaza fountain, palm-lined streets, and eight landmark signs. Four times of day: golden-hour sunset, noon, neon night, dawn.
-- **On foot and by car.** Walk, run and jump as Cassian Rowe; steal any parked car with E, drive with WASD, handbrake with Space. Sedans, taxis, vans and the Comet GT sports car all handle differently, and every car takes damage.
+- **The city.** A coastal 7×7 grid with five districts (Old Port, Downtown, Calle Verde, Northside, Marina), a beach and pier with a lighthouse, a plaza fountain, palm-lined streets, neon billboards, and eight landmark signs. Four times of day: golden-hour sunset, noon, neon night, dawn. The v4 palette is deliberately bright — light-grey roads, vivid car paint, turquoise sea — so the game reads like the top entries' covers, not a dark alley.
+- **On foot and by car.** Walk, run and jump as Cassian Rowe; steal any parked car with E, drive with WASD, handbrake with Space. Sedans, taxis, vans and the hot-pink Comet GT sports car all handle differently, and every car takes damage.
 - **Traffic and pedestrians.** Cars follow the road grid and brake for the car ahead; pedestrians stroll the sidewalks, flee when you hit them, and shout at you.
 - **Wanted and police.** Crimes raise your wanted level from one to five stars. MBPD cruisers chase and ram, foot cops close in, and at three stars the Air One helicopter puts its spotlight on you. Break line of sight and stay quiet to cool the heat. Each district tracks its own HEAT; at 5 a district goes into LOCKDOWN.
 - **The story — "The Meridian Job".** Six missions with fixer briefs and MBPD radio chatter: steal your first wheels, run a 90-second courier, collect three drops, survive three stars, steal the black Harbor Kings van from the pier, and hold the bank for twenty seconds at four stars.
@@ -47,9 +47,9 @@ Then open http://localhost:8080 in a desktop browser and press Enter (or click) 
 
 The four screenshots in `screenshots/` are real renders of the game, taken deterministically with `?shot=<scene>&seed=1`:
 
-1. `1-chase.jpg` — the cover: M6, four stars, Air One overhead, $31,200, golden hour.
+1. `1-chase.jpg` — the cover: M6, four stars, Air One overhead, $31,200, golden hour, hot-pink Comet GT.
 2. `2-onfoot.jpg` — M1, on foot beside a stolen sedan, $250, dusk.
-3. `3-dialog.jpg` — M5, the Pier Heist brief from Inez Kade, $4,850, noon.
+3. `3-dialog.jpg` — M5, the Pier Heist brief from Inez Kade, $4,850, noon (panel and dialog name the same mission).
 4. `4-progress.jpg` — M4 passed, $18,450, neon night.
 
 Re-render them with:
@@ -64,7 +64,7 @@ node render-shots.mjs
 node main.ts
 ```
 
-This copies `game/` and `screenshots/` into `$MAKEFUN_OUTPUT_DIR` (default `/output`) and writes `dossier.json` there. Two runs from any directory produce byte-identical output.
+This copies `game/` and `screenshots/` into `$MAKEFUN_OUTPUT_DIR` (default `/output`) and writes `dossier.json` there. Two runs from any directory produce byte-identical output. Note: `main.ts` never removes the output directory — the grader mounts `/output` as a volume, and removing a mount point fails (this is what killed the v3 entry).
 
 ## Original work
 

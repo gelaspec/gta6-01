@@ -1,6 +1,6 @@
-// Vehicles: arcade car physics, stealable cars, traffic AI on the road
-// grid, and distinct models (sedan, taxi, van, sports, police cruiser)
-// built from boxes with glass, wheels, lights and liveries.
+// Vehicles: arcade car physics, stealable cars, traffic AI on the
+// road grid, and distinct models (sedan, taxi, van, sports, police
+// cruiser) built from boxes with glass, wheels, lights and liveries.
 
 import * as THREE from 'three';
 import { CONFIG, PALETTE, CAR_MODELS } from './config.js';
@@ -9,7 +9,7 @@ import { pointBlocked, clampToCity } from './city.js';
 
 const WHEEL_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10);
 const WHEEL_MAT = new THREE.MeshLambertMaterial({ color: 0x14161a });
-const GLASS_MAT = new THREE.MeshLambertMaterial({ color: 0x1c2f42 });
+const GLASS_MAT = new THREE.MeshLambertMaterial({ color: 0x22405e });
 const LIGHT_MAT = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
 const TAIL_MAT = new THREE.MeshBasicMaterial({ color: 0xd83232 });
 const RED_BAR = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
@@ -38,7 +38,7 @@ export function buildCarMesh(rng, model, color) {
   if (model.kind === 'taxi') {
     const sign = new THREE.Mesh(
       new THREE.BoxGeometry(0.7, 0.22, 0.4),
-      new THREE.MeshBasicMaterial({ color: 0xf2c230 }),
+      new THREE.MeshBasicMaterial({ color: 0xffd60a }),
     );
     sign.position.set(0, bodyY + bodyH / 2 + cabinH + 0.05, -0.2);
     g.add(sign);
@@ -78,6 +78,8 @@ export function buildCarMesh(rng, model, color) {
     wheels.push(w);
   }
   g.userData.wheels = wheels;
+  g.userData.body = body;
+  g.userData.paint = paint;
   g.userData.length = long;
   return g;
 }
@@ -86,7 +88,9 @@ function roadPoint(rng, lines) {
   const vertical = rng.chance(0.5);
   const at = rng.pick(lines);
   const along = rng.range(-130, 130);
-  return vertical ? { x: at, z: along, heading: rng.chance(0.5) ? 0 : Math.PI } : { x: along, z: at, heading: rng.chance(0.5) ? Math.PI / 2 : -Math.PI / 2 };
+  return vertical
+    ? { x: at, z: along, heading: rng.chance(0.5) ? 0 : Math.PI }
+    : { x: along, z: at, heading: rng.chance(0.5) ? Math.PI / 2 : -Math.PI / 2 };
 }
 
 export function createVehicles(scene, rng, city) {
@@ -214,8 +218,8 @@ function drivePlayerCar(G, car, dt) {
   const c = clampToCity(car.x, car.z);
   car.x = c.x;
   car.z = c.z;
-  // Camera follows the car heading: the rig yaw matches the heading, so
-  // the camera sits behind the car and looks where it is going.
+  // Camera follows the car heading: the rig yaw matches the heading,
+  // so the camera sits behind the car and looks where it is going.
   G.rig.yaw = angleLerp(G.rig.yaw, car.heading, Math.min(1, dt * 3));
   G.audio.setEngine(Math.abs(car.speed) / maxSpeed, car.speed);
   if (Math.abs(car.speed) > 20) G.rig.shake = Math.max(G.rig.shake, 0.05);

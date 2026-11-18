@@ -1,6 +1,7 @@
-// Combat: fists and the pistol. Raycast shooting against pedestrians,
-// police and gang members, ammo with reload, muzzle flash, and the
-// enemy health that missions use for holdout objectives.
+// Combat: fists and the pistol. Raycast shooting against
+// pedestrians, police and gang members, ammo with reload, muzzle
+// flash, and the enemy health that missions use for holdout
+// objectives.
 
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
@@ -23,7 +24,7 @@ export function spawnEnemy(G, x, z, hp) {
   const mesh = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.72, 0.85, 0.4),
-    new THREE.MeshLambertMaterial({ color: 0x6b1f1f }),
+    new THREE.MeshLambertMaterial({ color: 0x8a2a2a }),
   );
   body.position.y = 1.05;
   mesh.add(body);
