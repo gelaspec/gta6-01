@@ -1,46 +1,37 @@
-// Save: money, mission progress, packages and REP in localStorage.
-// Loading a save never blocks the game — a bad or missing save just
-// starts a fresh story.
+// Meridian Bay — localStorage save/load. One key, one JSON blob, versioned.
+const KEY = 'meridian-bay-save-v6';
 
-const KEY = 'meridian-bay-save-v4';
-
-export function loadSave() {
+export function saveGame(state) {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const data = {
+      version: 6,
+      money: state.money,
+      rep: state.rep,
+      day: state.day,
+      missionsDone: state.missionsDone,
+      packages: state.packages,
+      missionIndex: state.missionIndex,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function loadGame() {
+  try {
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (typeof data !== 'object' || data === null) return null;
+    if (!data || data.version !== 6) return null;
     return data;
-  } catch {
+  } catch (e) {
     return null;
   }
 }
 
-export function makeSaveApi(G) {
-  return {
-    save() {
-      try {
-        const data = {
-          money: Math.round(G.money),
-          rep: G.rep,
-          missionIndex: G.missions.currentIndex,
-          packagesFound: G.missions.packagesFound,
-          packagesTaken: G.missions.packages.map((p) => p.taken),
-          heat: G.missions.heat,
-          clockMinutes: Math.round(G.clockMinutes),
-          savedAt: Date.now(),
-        };
-        window.localStorage.setItem(KEY, JSON.stringify(data));
-      } catch {
-        // Storage may be unavailable in some contexts; the game goes on.
-      }
-    },
-    clear() {
-      try {
-        window.localStorage.removeItem(KEY);
-      } catch {
-        // Ignore.
-      }
-    },
-  };
+export function clearSave() {
+  try { localStorage.removeItem(KEY); } catch (e) { /* storage unavailable */ }
 }

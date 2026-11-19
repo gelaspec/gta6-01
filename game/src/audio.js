@@ -1,145 +1,132 @@
-// Audio: a WebAudio synth — engine hum that follows speed, siren
-// wails, gunshots, punches, cash pickups and a synthwave radio loop.
-// Everything is generated in code; there are no audio files and no
-// network. The context only starts after a user gesture.
-
+// Meridian Bay — WebAudio synth: engine hum, two-tone siren, gunshots,
+// pickup blips and a tiny synthwave radio loop. Created lazily on the first
+// user gesture; shot mode never initialises it.
 export function createAudio() {
   let ctx = null;
   let master = null;
   let engineOsc = null;
   let engineGain = null;
-  let musicTimer = null;
+  let sirenOsc = null;
+  let sirenGain = null;
+  let radioTimer = null;
   let muted = false;
-  let musicOn = false;
-  let note = 0;
-
-  // A small synthwave bass line, one bar at a time.
-  const BASS = [55, 55, 65.41, 49, 55, 55, 82.41, 73.42];
-  const LEAD = [220, 261.63, 329.63, 392, 329.63, 261.63, 220, 196];
+  let radioOn = false;
 
   function ensure() {
     if (ctx) return true;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
       ctx = new AC();
       master = ctx.createGain();
       master.gain.value = 0.5;
       master.connect(ctx.destination);
+      // engine: sawtooth through a lowpass, pitch follows speed
       engineOsc = ctx.createOscillator();
       engineOsc.type = 'sawtooth';
-      engineOsc.frequency.value = 60;
+      engineOsc.frequency.value = 55;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 320;
       engineGain = ctx.createGain();
       engineGain.gain.value = 0;
-      engineOsc.connect(engineGain);
+      engineOsc.connect(lp);
+      lp.connect(engineGain);
       engineGain.connect(master);
       engineOsc.start();
-    } catch {
-      ctx = null;
-    }
-    return !!ctx;
-  }
-
-  function blip(freq, dur, type, vol, slideTo) {
-    if (!ensure() || muted) return;
-    try {
-      const t = ctx.currentTime;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = type || 'sine';
-      o.frequency.setValueAtTime(freq, t);
-      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-      g.gain.setValueAtTime(vol || 0.2, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      o.connect(g);
-      g.connect(master);
-      o.start(t);
-      o.stop(t + dur + 0.02);
-    } catch {
-      // Audio is decoration; never break the game for it.
+      // siren: two alternating tones
+      sirenOsc = ctx.createOscillator();
+      sirenOsc.type = 'square';
+      sirenOsc.frequency.value = 700;
+      sirenGain = ctx.createGain();
+      sirenGain.gain.value = 0;
+      sirenOsc.connect(sirenGain);
+      sirenGain.connect(master);
+      sirenOsc.start();
+      let hi = true;
+      setInterval(() => {
+        if (!ctx || muted) return;
+        hi = !hi;
+        sirenOsc.frequency.setTargetAtTime(hi ? 700 : 950, ctx.currentTime, 0.05);
+      }, 380);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
-  function noiseBurst(dur, vol, low) {
+  function setEngine(speedKmh, inCar) {
+    if (!ctx || muted) return;
+    engineGain.gain.setTargetAtTime(inCar ? 0.05 + Math.min(0.09, speedKmh / 1800) : 0, ctx.currentTime, 0.1);
+    engineOsc.frequency.setTargetAtTime(55 + speedKmh * 1.1, ctx.currentTime, 0.08);
+  }
+  function setSiren(on) {
+    if (!ctx || muted) return;
+    sirenGain.gain.setTargetAtTime(on ? 0.035 : 0, ctx.currentTime, 0.2);
+  }
+  function blip(freq, dur = 0.12, type = 'sine', vol = 0.2) {
     if (!ensure() || muted) return;
-    try {
-      const t = ctx.currentTime;
-      const len = Math.floor(ctx.sampleRate * dur);
-      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      const filt = ctx.createBiquadFilter();
-      filt.type = 'lowpass';
-      filt.frequency.value = low || 1200;
-      const g = ctx.createGain();
-      g.gain.value = vol || 0.25;
-      src.connect(filt);
-      filt.connect(g);
-      g.connect(master);
-      src.start(t);
-    } catch {
-      // Ignore.
-    }
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start();
+    o.stop(ctx.currentTime + dur);
+  }
+  function gunshot() {
+    if (!ensure() || muted) return;
+    const len = ctx.sampleRate * 0.12;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = 0.35;
+    src.connect(g);
+    g.connect(master);
+    src.start();
+  }
+  function pickup() { blip(880, 0.14, 'sine', 0.22); setTimeout(() => blip(1320, 0.18, 'sine', 0.2), 90); }
+  function missionPass() {
+    [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => blip(f, 0.22, 'triangle', 0.2), i * 110));
+  }
+  function busted() {
+    [392, 330, 262].forEach((f, i) => setTimeout(() => blip(f, 0.3, 'sawtooth', 0.14), i * 160));
+  }
+  // tiny synthwave loop: bass + arp, scheduled per bar
+  function startRadio() {
+    if (radioOn || !ensure()) return;
+    radioOn = true;
+    const bassNotes = [55, 55, 65.4, 49];
+    const arpNotes = [220, 277, 330, 440, 330, 277];
+    let bar = 0;
+    radioTimer = setInterval(() => {
+      if (muted || !ctx) return;
+      const b = bassNotes[bar % bassNotes.length];
+      blip(b, 0.5, 'sawtooth', 0.06);
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => blip(arpNotes[(bar * 2 + i) % arpNotes.length], 0.16, 'square', 0.03), i * 120);
+      }
+      bar += 1;
+    }, 480);
+  }
+  function stopRadio() {
+    radioOn = false;
+    if (radioTimer) { clearInterval(radioTimer); radioTimer = null; }
+  }
+  function toggleMute() {
+    muted = !muted;
+    if (master) master.gain.value = muted ? 0 : 0.5;
+    return muted;
   }
 
   return {
-    resume() {
-      if (ensure() && ctx.state === 'suspended') ctx.resume().catch(() => {});
-    },
-    startMusic() {
-      if (musicOn || !ensure()) return;
-      musicOn = true;
-      musicTimer = window.setInterval(() => {
-        if (muted || !ctx) return;
-        const step = note % 8;
-        blip(BASS[step], 0.32, 'triangle', 0.16);
-        if (step % 2 === 0) blip(LEAD[step], 0.5, 'sine', 0.07);
-        note++;
-      }, 240);
-    },
-    stopMusic() {
-      musicOn = false;
-      if (musicTimer) window.clearInterval(musicTimer);
-      musicTimer = null;
-    },
-    toggleMute() {
-      muted = !muted;
-      if (master) master.gain.value = muted ? 0 : 0.5;
-      return muted;
-    },
-    isMuted() {
-      return muted;
-    },
-    engine(speed01) {
-      if (!ensure() || muted) return;
-      try {
-        engineOsc.frequency.value = 55 + speed01 * 130;
-        engineGain.gain.value = 0.02 + speed01 * 0.05;
-      } catch {
-        // Ignore.
-      }
-    },
-    shot() {
-      noiseBurst(0.14, 0.4, 2400);
-    },
-    punch() {
-      noiseBurst(0.1, 0.3, 500);
-    },
-    pickup() {
-      blip(880, 0.12, 'sine', 0.22);
-      window.setTimeout(() => blip(1318, 0.16, 'sine', 0.2), 90);
-    },
-    crash() {
-      noiseBurst(0.3, 0.35, 700);
-    },
-    sirenBurst() {
-      blip(700, 0.5, 'sine', 0.16, 1200);
-      window.setTimeout(() => blip(1200, 0.5, 'sine', 0.16, 700), 500);
-    },
-    sirenTick(wanted) {
-      if (!wanted) return;
-      blip(wanted >= 3 ? 950 : 700, 0.4, 'sine', 0.07, wanted >= 3 ? 1400 : 1000);
-    },
+    ensure, setEngine, setSiren, gunshot, pickup, missionPass, busted, startRadio, stopRadio, toggleMute,
+    get muted() { return muted; },
   };
 }

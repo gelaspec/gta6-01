@@ -1,89 +1,95 @@
-// Effects: small pooled particle bursts — sparks for gunfire and
-// impacts, tyre smoke for hard driving, muzzle flashes for shots.
-// One shared pool per colour family, recycled in place, so the
-// effect never allocates during play.
-
+// Meridian Bay — particles and one-shot effects: impact bursts, tyre smoke,
+// muzzle flash light, pickup sparkles. One pooled Points cloud, no per-frame
+// allocation.
 import * as THREE from 'three';
 
-function makePool(scene, count, color, size) {
+export function createEffects(scene) {
+  const MAX = 400;
   const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array(count * 3);
-  const vel = new Float32Array(count * 3);
-  const life = new Float32Array(count);
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({
-    color,
-    size,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false,
-  });
+  const positions = new Float32Array(MAX * 3);
+  const colors = new Float32Array(MAX * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
   scene.add(points);
-  return { points, pos, vel, life, count, cursor: 0 };
-}
+  const parts = [];
+  for (let i = 0; i < MAX; i++) parts.push({ alive: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, r: 1, g: 1, b: 1 });
+  let cursor = 0;
+  const tmpColor = new THREE.Color();
 
-function spawn(pool, x, y, z, spread, up, life) {
-  for (let n = 0; n < 6; n++) {
-    const i = pool.cursor;
-    pool.cursor = (pool.cursor + 1) % pool.count;
-    pool.pos[i * 3] = x;
-    pool.pos[i * 3 + 1] = y;
-    pool.pos[i * 3 + 2] = z;
-    pool.vel[i * 3] = (Math.random() - 0.5) * spread;
-    pool.vel[i * 3 + 1] = Math.random() * up;
-    pool.vel[i * 3 + 2] = (Math.random() - 0.5) * spread;
-    pool.life[i] = life * (0.6 + Math.random() * 0.6);
-  }
-  pool.points.geometry.attributes.position.needsUpdate = true;
-}
-
-function tickPool(pool, dt) {
-  let alive = false;
-  for (let i = 0; i < pool.count; i++) {
-    if (pool.life[i] <= 0) continue;
-    pool.life[i] -= dt;
-    if (pool.life[i] <= 0) {
-      pool.pos[i * 3 + 1] = -100;
-      continue;
+  function spawn(x, y, z, hex, count, speed = 6, up = 4, life = 0.7) {
+    tmpColor.setHex(hex);
+    for (let n = 0; n < count; n++) {
+      const p = parts[cursor];
+      cursor = (cursor + 1) % MAX;
+      p.alive = true;
+      p.x = x; p.y = y; p.z = z;
+      const a = Math.random() * Math.PI * 2;
+      const s = speed * (0.4 + Math.random() * 0.8);
+      p.vx = Math.cos(a) * s;
+      p.vz = Math.sin(a) * s;
+      p.vy = up * (0.4 + Math.random() * 0.9);
+      p.max = life * (0.6 + Math.random() * 0.7);
+      p.life = p.max;
+      p.r = tmpColor.r; p.g = tmpColor.g; p.b = tmpColor.b;
     }
-    alive = true;
-    pool.pos[i * 3] += pool.vel[i * 3] * dt;
-    pool.pos[i * 3 + 1] += pool.vel[i * 3 + 1] * dt;
-    pool.pos[i * 3 + 2] += pool.vel[i * 3 + 2] * dt;
-    pool.vel[i * 3 + 1] -= 4 * dt;
   }
-  if (alive) pool.points.geometry.attributes.position.needsUpdate = true;
-}
 
-export function createEffects(scene) {
-  return {
-    sparks: makePool(scene, 240, 0xffd34d, 0.35),
-    smoke: makePool(scene, 240, 0x9aa2b0, 0.9),
-    blood: makePool(scene, 120, 0xff5d47, 0.3),
-  };
-}
+  function update(dt) {
+    let any = false;
+    for (let i = 0; i < MAX; i++) {
+      const p = parts[i];
+      if (!p.alive) {
+        positions[i * 3 + 1] = -100;
+        continue;
+      }
+      any = true;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.alive = false;
+        positions[i * 3 + 1] = -100;
+        continue;
+      }
+      p.vy -= 14 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      if (p.y < 0.05) { p.y = 0.05; p.vy = 0; }
+      positions[i * 3] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+      const f = p.life / p.max;
+      colors[i * 3] = p.r * f;
+      colors[i * 3 + 1] = p.g * f;
+      colors[i * 3 + 2] = p.b * f;
+    }
+    if (any) {
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.color.needsUpdate = true;
+    }
+  }
 
-export function updateEffects(pool, dt) {
-  tickPool(pool.sparks, dt);
-  tickPool(pool.smoke, dt);
-  tickPool(pool.blood, dt);
-}
+  const flashLight = new THREE.PointLight(0xffe9a8, 0, 14, 1.8);
+  scene.add(flashLight);
+  let flashT = 0;
+  function muzzleFlash(pos) {
+    flashLight.position.set(pos.x, pos.y + 1.4, pos.z);
+    flashLight.intensity = 6;
+    flashT = 0.07;
+    spawn(pos.x, pos.y + 1.3, pos.z, 0xffe9a8, 8, 3, 1, 0.3);
+  }
+  function impact(pos) { spawn(pos.x, pos.y + 0.5, pos.z, 0xffd54f, 14, 7, 5, 0.6); }
+  function smoke(pos) { spawn(pos.x, pos.y + 0.3, pos.z, 0x9aa4ae, 3, 1.2, 1.6, 0.9); }
+  function sparkle(pos) { spawn(pos.x, pos.y + 0.6, pos.z, 0x39d353, 16, 3, 4, 0.9); }
 
-export function makeEffectsApi(pool) {
-  return {
-    burst(x, y, z) {
-      spawn(pool.sparks, x, y, z, 6, 4, 0.5);
-    },
-    smoke(x, y, z) {
-      spawn(pool.smoke, x, y, z, 1.5, 2.5, 1.1);
-    },
-    muzzle(x, y, z) {
-      spawn(pool.sparks, x, y, z, 3, 2, 0.18);
-    },
-    hit(x, y, z) {
-      spawn(pool.blood, x, y, z, 4, 3, 0.6);
-    },
-  };
+  function updateFlash(dt) {
+    if (flashT > 0) {
+      flashT -= dt;
+      if (flashT <= 0) flashLight.intensity = 0;
+    }
+  }
+
+  return { update, muzzleFlash, impact, smoke, sparkle, updateFlash };
 }

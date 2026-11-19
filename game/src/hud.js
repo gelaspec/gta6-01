@@ -1,255 +1,187 @@
-// HUD: every DOM panel — mission panel, police response panel,
-// money + wanted + REP, vitals, drive panel, weapon slots, the live
-// circular minimap, toasts and hints — plus the full-screen states
-// (title, pause, busted, mission passed, story complete).
-
-import { CONFIG, RADIO_STATIONS, districtAt, streetAt, repRank } from './config.js';
-import { formatMoney, formatClock } from './random.js';
-import { policePanelData } from './police.js';
+// Meridian Bay — the HUD: mission panel, wanted stars, money, police panel,
+// dialog is in dialog.js; this file owns everything else on screen, plus the
+// circular live minimap drawn on a 2D canvas.
+import { CONFIG } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 
-export function createHud() {
-  const minimap = $('minimap');
-  const mctx = minimap.getContext('2d');
-  let toastTimer = null;
-  let hintTimer = null;
-  const cache = { money: null, clock: null, stars: null, rep: null };
+function money(n) {
+  return '$' + Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 
-  function drawMinimap(G) {
-    const W = minimap.width;
-    const H = minimap.height;
-    const cx = W / 2;
-    const cy = H / 2;
-    const scale = W / 340; // city spans about -150..190 m
-    const px = (x) => cx + (x - 10) * scale;
-    const py = (z) => cy + z * scale;
-    mctx.clearRect(0, 0, W, H);
-    // Sea on the east, sand, then the city green.
-    mctx.fillStyle = '#2a9db5';
-    mctx.fillRect(px(140), 0, W, H);
-    mctx.fillStyle = '#efd9a8';
-    mctx.fillRect(px(120), 0, px(140) - px(120), H);
-    mctx.fillStyle = '#24361f';
-    mctx.fillRect(0, 0, px(120), H);
-    // Roads.
-    mctx.strokeStyle = '#6e7480';
-    mctx.lineWidth = 4;
-    for (let v = CONFIG.gridMin; v <= CONFIG.gridMax; v += CONFIG.block) {
-      mctx.beginPath();
-      mctx.moveTo(px(v), py(-150));
-      mctx.lineTo(px(v), py(150));
-      mctx.stroke();
-      mctx.beginPath();
-      mctx.moveTo(px(-150), py(v));
-      mctx.lineTo(px(150), py(v));
-      mctx.stroke();
+export function createHud(city) {
+  const els = {
+    money: $('hud-money'),
+    day: $('hud-day'),
+    clock: $('hud-clock'),
+    district: $('hud-district'),
+    street: $('hud-street'),
+    stars: $('hud-stars'),
+    status: $('hud-status'),
+    healthFill: $('health-fill'),
+    healthNum: $('health-num'),
+    repFill: $('rep-fill'),
+    repText: $('rep-text'),
+    repRank: $('rep-rank'),
+    speed: $('hud-speed'),
+    carName: $('hud-car'),
+    condition: $('hud-condition'),
+    radio: $('hud-radio'),
+    missionChapter: $('mission-chapter'),
+    missionName: $('mission-name'),
+    missionObjective: $('mission-objective'),
+    missionStage: $('mission-stage'),
+    missionStageFill: $('mission-stage-fill'),
+    missionNext: $('mission-next'),
+    policeList: $('police-panel'),
+    policeListInner: $('police-list'),
+    policeHeader: $('police-header'),
+    weaponSlots: $('weapon-slots'),
+    minimap: $('minimap'),
+    dispatch: $('dispatch-line'),
+    minimapLabel: $('minimap-label'),
+  };
+  const mm = els.minimap.getContext('2d');
+  const MM = 168; // canvas pixels
+  const RANGE = 260; // world metres across the minimap
+
+  function drawMinimap(px, pz, heading, missionSpot, policeUnits, heliPos, packages) {
+    mm.clearRect(0, 0, MM, MM);
+    const cx = MM / 2;
+    const cy = MM / 2;
+    const scale = MM / RANGE;
+    const toMap = (x, z) => [cx + (x - px) * scale, cy + (z - pz) * scale];
+    // sea + beach (east)
+    const [bx] = toMap(CONFIG.beachX, 0);
+    mm.fillStyle = '#2ec4d8';
+    mm.fillRect(bx, 0, MM - bx, MM);
+    mm.fillStyle = '#f2dfae';
+    mm.fillRect(toMap(CONFIG.beachX - 14, 0)[0], 0, 14 * scale, MM);
+    // roads
+    mm.strokeStyle = '#8f969e';
+    mm.lineWidth = 5;
+    for (let i = 0; i <= CONFIG.grid; i++) {
+      const c = -CONFIG.cityHalf + i * CONFIG.grid * 0 + i * CONFIG.block;
+      const [x1] = toMap(c, 0);
+      mm.beginPath(); mm.moveTo(x1, 0); mm.lineTo(x1, MM); mm.stroke();
+      const [, z1] = toMap(0, c);
+      mm.beginPath(); mm.moveTo(0, z1); mm.lineTo(MM, z1); mm.stroke();
     }
-    // Pier.
-    mctx.strokeStyle = '#8a6a4a';
-    mctx.lineWidth = 3;
-    mctx.beginPath();
-    mctx.moveTo(px(140), py(0));
-    mctx.lineTo(px(205), py(0));
-    mctx.stroke();
-    // Hidden packages.
-    mctx.fillStyle = '#ffd34d';
-    for (const pkg of G.missions.packages) {
-      if (pkg.taken) continue;
-      mctx.beginPath();
-      mctx.arc(px(pkg.x), py(pkg.z), 2.5, 0, Math.PI * 2);
-      mctx.fill();
+    // plaza
+    const [plx, plz] = toMap(0, 0);
+    mm.fillStyle = '#e8e2d2';
+    mm.beginPath(); mm.arc(plx, plz, 6, 0, Math.PI * 2); mm.fill();
+    // packages
+    mm.fillStyle = '#39d353';
+    for (const p of packages) {
+      if (p.taken) continue;
+      const [x, z] = toMap(p.pos.x, p.pos.z);
+      if (x < 0 || x > MM || z < 0 || z > MM) continue;
+      mm.fillRect(x - 2, z - 2, 4, 4);
     }
-    // Police blips.
-    for (const u of G.police.units) {
-      mctx.fillStyle = '#2a6bff';
-      mctx.beginPath();
-      mctx.arc(px(u.x), py(u.z), 4, 0, Math.PI * 2);
-      mctx.fill();
-      mctx.strokeStyle = '#ff2a2a';
-      mctx.lineWidth = 1.5;
-      mctx.stroke();
+    // mission waypoint
+    if (missionSpot) {
+      const [x, z] = toMap(missionSpot.x, missionSpot.z);
+      if (x >= 0 && x <= MM && z >= 0 && z <= MM) {
+        mm.fillStyle = '#ffe600';
+        mm.beginPath(); mm.arc(x, z, 6, 0, Math.PI * 2); mm.fill();
+        mm.strokeStyle = '#111';
+        mm.lineWidth = 2;
+        mm.stroke();
+      }
     }
-    // Mission beacon.
-    if (G.missions.current && G.missions.current.target) {
-      const t = G.missions.current.target;
-      mctx.strokeStyle = '#ffd34d';
-      mctx.lineWidth = 2;
-      mctx.beginPath();
-      mctx.arc(px(t.x), py(t.z), 7, 0, Math.PI * 2);
-      mctx.stroke();
-      mctx.fillStyle = '#ffd34d';
-      mctx.beginPath();
-      mctx.arc(px(t.x), py(t.z), 3, 0, Math.PI * 2);
-      mctx.fill();
+    // police
+    for (const u of policeUnits) {
+      const [x, z] = toMap(u.car.pos.x, u.car.pos.z);
+      if (x < 0 || x > MM || z < 0 || z > MM) continue;
+      mm.fillStyle = '#2e6bff';
+      mm.beginPath(); mm.arc(x, z, 4, 0, Math.PI * 2); mm.fill();
     }
-    // Player: a gold triangle pointing along the heading.
-    const p = G.player;
-    const h = p.inCar ? p.inCar.heading : p.heading;
-    mctx.fillStyle = '#ffd34d';
-    mctx.beginPath();
-    mctx.moveTo(px(p.x) + Math.sin(h) * 7, py(p.z) + Math.cos(h) * 7);
-    mctx.lineTo(px(p.x) + Math.sin(h + 2.5) * 5, py(p.z) + Math.cos(h + 2.5) * 5);
-    mctx.lineTo(px(p.x) + Math.sin(h - 2.5) * 5, py(p.z) + Math.cos(h - 2.5) * 5);
-    mctx.closePath();
-    mctx.fill();
-    mctx.strokeStyle = '#fff';
-    mctx.lineWidth = 1;
-    mctx.stroke();
-    // North marker.
-    mctx.fillStyle = '#fff';
-    mctx.font = 'bold 11px Arial';
-    mctx.textAlign = 'center';
-    mctx.fillText('N', cx, 12);
+    if (heliPos) {
+      const [x, z] = toMap(heliPos.x, heliPos.z);
+      mm.fillStyle = '#ff2e2e';
+      mm.beginPath(); mm.arc(x, z, 5, 0, Math.PI * 2); mm.fill();
+    }
+    // player arrow (centre, points up the heading)
+    mm.save();
+    mm.translate(cx, cy);
+    mm.rotate(Math.PI - heading);
+    mm.fillStyle = '#ffffff';
+    mm.strokeStyle = '#111';
+    mm.lineWidth = 1.5;
+    mm.beginPath();
+    mm.moveTo(0, -9); mm.lineTo(6, 7); mm.lineTo(0, 3); mm.lineTo(-6, 7);
+    mm.closePath(); mm.fill(); mm.stroke();
+    mm.restore();
   }
 
-  return {
-    update(G) {
-      // Money, clock, district, street.
-      const money = formatMoney(G.money);
-      if (cache.money !== money) {
-        cache.money = money;
-        $('money').textContent = money;
-      }
-      const clock = formatClock(G.clockMinutes);
-      if (cache.clock !== clock) {
-        cache.clock = clock;
-        $('clock').textContent = clock;
-      }
-      $('district').textContent = districtAt(G.player.x, G.player.z);
-      $('map-street').textContent = `${districtAt(G.player.x, G.player.z)} · ${streetAt(G.player.x, G.player.z)}`;
+  function update(state) {
+    const s = state;
+    els.money.textContent = money(s.money);
+    els.day.textContent = `DAY ${s.day}`;
+    els.clock.textContent = s.clock;
+    els.district.textContent = city.districtAt(s.pos.x, s.pos.z);
+    els.street.textContent = city.streetAt(s.pos.x, s.pos.z);
+    // wanted stars
+    let stars = '';
+    for (let i = 0; i < 5; i++) stars += i < s.wanted ? '★' : '☆';
+    els.stars.textContent = stars;
+    els.stars.className = s.wanted > 0 ? 'stars hot' : 'stars';
+    els.status.textContent = s.wanted >= 3 ? 'IN SIGHT' : s.wanted > 0 ? 'WANTED' : 'CLEAR';
+    els.status.className = s.wanted >= 3 ? 'status in-sight' : s.wanted > 0 ? 'status wanted' : 'status';
+    // health
+    els.healthFill.style.width = `${Math.max(0, s.health)}%`;
+    els.healthNum.textContent = `${Math.max(0, Math.round(s.health))}`;
+    // REP
+    const rep = Math.min(s.rep, 2400);
+    els.repFill.style.width = `${(rep / 2400) * 100}%`;
+    const rank = CONFIG.repRanks[Math.min(4, Math.floor(s.rep / 600))];
+    els.repText.textContent = `REP ${s.rep}`;
+    els.repRank.textContent = rank.toUpperCase();
+    // speed + car
+    els.speed.textContent = s.inCar ? String(Math.round(s.speedKmh)) : '0';
+    els.carName.textContent = s.inCar ? s.carName : 'ON FOOT';
+    els.condition.textContent = s.inCar ? `COND ${Math.round(s.carCondition)}%` : '—';
+    els.radio.textContent = s.inCar ? `${s.radioStation} ♫ ${s.radioSong}` : 'RADIO OFF';
+    // mission panel
+    const m = s.mission;
+    els.missionChapter.textContent = m.chapter;
+    els.missionName.textContent = `${m.id} — ${m.name}`;
+    els.missionObjective.textContent = m.objective;
+    els.missionStage.textContent = s.missionStageText;
+    const stageFrac = s.missionStageFrac;
+    els.missionStageFill.style.width = `${Math.round(stageFrac * 100)}%`;
+    els.missionNext.textContent = s.missionNextText;
+    // police panel
+    if (s.wanted > 0 && s.policeUnits.length > 0) {
+      els.policeList.classList.remove('hidden');
+      els.policeHeader.textContent = `MBPD — ${s.wanted}★ — CODE 3`;
+      els.policeListInner.innerHTML = s.policeUnits.map((u) =>
+        `<div class="police-row"><span>${u.name}</span><span>${u.dist}m</span><span class="police-status">${u.status}</span></div>`).join('')
+        + (s.heliVisible ? `<div class="police-row"><span>AIR ONE</span><span>—</span><span class="police-status">SPOTLIGHT</span></div><div class="police-row"><span>ROADBLOCK</span><span>—</span><span class="police-status">SET UP</span></div>` : '');
+    } else {
+      els.policeList.classList.add('hidden');
+    }
+    // weapon slots
+    const slots = [
+      { name: 'FISTS', ammo: '∞', locked: false, active: s.weapon === 'fists' },
+      { name: 'PISTOL', ammo: `${s.ammo}/12`, locked: false, active: s.weapon === 'pistol' },
+      { name: 'SHOTGUN', ammo: '', locked: true, active: false },
+      { name: 'SMG', ammo: '', locked: true, active: false },
+    ];
+    els.weaponSlots.innerHTML = slots.map((w) =>
+      `<div class="weapon${w.active ? ' active' : ''}${w.locked ? ' locked' : ''}"><span>${w.name}</span><span>${w.locked ? 'LOCKED' : w.ammo}</span></div>`).join('');
+    // dispatch ticker
+    if (s.dispatchLine) {
+      els.dispatch.textContent = s.dispatchLine;
+      els.dispatch.classList.remove('hidden');
+    } else {
+      els.dispatch.classList.add('hidden');
+    }
+    // minimap
+    els.minimapLabel.textContent = `${city.districtAt(s.pos.x, s.pos.z)} — ${city.streetAt(s.pos.x, s.pos.z)}`;
+    drawMinimap(s.pos.x, s.pos.z, s.heading, s.missionSpot, s.policeUnits, s.heliPos, s.packages);
+  }
 
-      // Wanted stars + IN SIGHT.
-      const wanted = Math.round(G.police.wanted);
-      if (cache.stars !== wanted) {
-        cache.stars = wanted;
-        let html = '';
-        for (let i = 0; i < 5; i++) {
-          html += i < wanted ? '★' : '<span class="off">★</span>';
-        }
-        $('wanted-stars').innerHTML = html;
-      }
-      $('insight').style.display = wanted > 0 && G.police.inSight ? 'block' : 'none';
-
-      // REP bar.
-      const rank = repRank(G.rep);
-      const repKey = `${rank.current.name}:${G.rep}`;
-      if (cache.rep !== repKey) {
-        cache.rep = repKey;
-        const nextAt = rank.next ? rank.next.at : rank.current.at + 1000;
-        const pct = Math.min(100, ((G.rep - rank.current.at) / Math.max(1, nextAt - rank.current.at)) * 100);
-        $('rep-fill').style.width = `${pct}%`;
-        $('rep-label').textContent = `REP ${G.rep} · ${rank.current.name}${rank.next ? ` → ${rank.next.name} ${nextAt}` : ''}`;
-      }
-
-      // Mission panel.
-      const cur = G.missions.current;
-      if (cur) {
-        $('mission-chapter').textContent = cur.def.chapter;
-        $('mission-name').textContent = `M${cur.index + 1}: ${cur.def.name}`;
-        let obj = cur.def.objectives[Math.min(cur.stage, cur.def.objectives.length - 1)];
-        if (cur.index === 1 && cur.stage === 1) obj += ` — ${Math.ceil(cur.timer)}s left`;
-        if (cur.index === 3 && cur.stage === 1) obj += ` — survive ${Math.ceil(cur.surviveLeft)}s`;
-        if (cur.index === 5 && cur.stage === 1) obj += ` — hold ${Math.ceil(cur.holdLeft)}s`;
-        $('mission-objective').textContent = obj;
-        $('mission-stage-fill').style.width = `${((cur.stage + 1) / cur.def.objectives.length) * 100}%`;
-        const next = cur.index + 1 < G.missions.defs.length
-          ? `NEXT: M${cur.index + 2}: ${G.missions.defs[cur.index + 1].name}`
-          : 'NEXT: Story complete';
-        $('mission-next').textContent = next;
-        $('mission-panel').style.display = 'block';
-      } else {
-        $('mission-panel').style.display = 'none';
-      }
-
-      // Police response panel.
-      const units = policePanelData(G);
-      if (wanted > 0 && units.length > 0) {
-        $('police-panel').style.display = 'block';
-        $('police-count').textContent = `${units.length} UNIT${units.length > 1 ? 'S' : ''} RESPONDING`;
-        $('police-units').innerHTML = units
-          .map((u) => `<div class="unit"><span>${u.name}</span><span>${u.dist}m</span><span class="st">${u.status}</span></div>`)
-          .join('');
-        $('police-code').textContent = wanted >= 4 ? 'CODE 3 · ROADBLOCKS UP · AIR ONE OVERHEAD' : wanted >= 3 ? 'CODE 2 · AIR ONE OVERHEAD' : 'CODE 1 · PURSUIT IN PROGRESS';
-      } else {
-        $('police-panel').style.display = 'none';
-      }
-
-      // Vitals: health, ammo, weapon slots.
-      $('health-num').textContent = `${Math.round(G.player.health)} HP`;
-      $('health-fill').style.width = `${Math.max(0, G.player.health)}%`;
-      $('health-fill').style.background = G.player.health > 50 ? '#54d977' : G.player.health > 25 ? '#ffd34d' : '#ff5d47';
-      $('ammo').textContent = G.combat.reloading > 0
-        ? 'RELOADING…'
-        : `PISTOL ${G.combat.ammo}/12`;
-      $('weapons').innerHTML =
-        `<span class="wslot ${G.combat.ammo > 0 ? 'on' : ''}">PISTOL ${G.combat.ammo}</span>` +
-        '<span class="wslot on">FISTS</span>' +
-        '<span class="wslot lock">SMG — LOCKED</span>' +
-        '<span class="wslot lock">SHOTGUN — LOCKED</span>';
-
-      // Drive panel: speed, car, condition, radio.
-      const car = G.player.inCar;
-      if (car) {
-        $('drive-panel').style.display = 'block';
-        const kmh = Math.round(Math.abs(car.speed) * 3.6);
-        $('speed').textContent = `${kmh} km/h`;
-        $('car-name').textContent = car.model.name;
-        $('car-cond-fill').style.width = `${Math.max(0, car.condition)}%`;
-      } else {
-        $('drive-panel').style.display = 'none';
-      }
-      const station = RADIO_STATIONS[G.radioIndex % RADIO_STATIONS.length];
-      $('radio-line').textContent = `♪ ${station.name}`;
-      $('song-line').textContent = station.songs[G.songIndex % station.songs.length];
-
-      drawMinimap(G);
-    },
-
-    showScreen(id) {
-      for (const s of ['screen-title', 'screen-pause', 'screen-busted', 'screen-passed', 'screen-complete']) {
-        $(s).style.display = s === id ? 'flex' : 'none';
-      }
-    },
-
-    hideScreens() {
-      for (const s of ['screen-title', 'screen-pause', 'screen-busted', 'screen-passed', 'screen-complete']) {
-        $(s).style.display = 'none';
-      }
-    },
-
-    showPassed(data) {
-      $('passed-title').textContent = data.title;
-      $('passed-stars').textContent = '★'.repeat(data.stars) + '☆'.repeat(3 - data.stars);
-      $('passed-stats').textContent = data.stats;
-      $('passed-quote').textContent = data.quote;
-      $('passed-next').textContent = data.next;
-      this.showScreen('screen-passed');
-    },
-
-    showComplete(data) {
-      $('complete-stats').textContent = data.stats;
-      this.showScreen('screen-complete');
-    },
-
-    toast(msg) {
-      const el = $('toast');
-      el.textContent = msg;
-      el.style.display = 'block';
-      if (toastTimer) window.clearTimeout(toastTimer);
-      toastTimer = window.setTimeout(() => {
-        el.style.display = 'none';
-      }, 4000);
-    },
-
-    hint(msg) {
-      const el = $('hint');
-      el.textContent = msg;
-      el.style.display = 'block';
-      if (hintTimer) window.clearTimeout(hintTimer);
-      hintTimer = window.setTimeout(() => {
-        el.style.display = 'none';
-      }, 6000);
-    },
-  };
+  return { update, money };
 }

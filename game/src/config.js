@@ -1,188 +1,135 @@
-// Meridian Bay — tuning numbers, the BRIGHT palette and the world
-// constants (districts, streets, landmarks, radio, cars, REP).
-// The palette is deliberately bright: pale warm-grey asphalt, vivid
-// car paint, turquoise sea and a golden sky, so the game reads like
-// the top entries' covers instead of a dark alley.
+// Meridian Bay — tuning, palette and world constants (fresh authoring, v6).
+// Everything the game tunes from lives here, so the other modules stay small.
 
 export const CONFIG = {
-  // World: a 7x7 street grid, 40 m blocks, beach on the east edge.
-  block: 40,
-  roadHalf: 5,
-  gridMin: -120,
-  gridMax: 120,
-  beachX: 140,
-  seaX: 165,
-  pierEndX: 205,
+  // -- city ---------------------------------------------------------------
+  grid: 7, // 7x7 blocks
+  block: 44, // metres per block (road centre to road centre)
+  roadWidth: 13,
+  sidewalk: 3.2,
+  cityHalf: 154, // 7 * 44 / 2
+  beachX: 168, // beach starts east of the grid
+  seaX: 196,
 
-  // Player on foot
-  walkSpeed: 6,
-  runSpeed: 10,
+  // -- bright palette (the user said v3 was too dark; top-20 covers are vivid)
+  palette: {
+    asphalt: 0x8f969e, // warm light-grey road (was near-black in v3)
+    asphaltLine: 0xf5f2e8,
+    sidewalk: 0xd8cfc0,
+    sand: 0xf2dfae,
+    sea: 0x2ec4d8, // turquoise
+    seaDeep: 0x1d9fc4,
+    grass: 0x7ec850,
+    plaza: 0xe8e2d2,
+    skyNoon: 0x7ec8f2,
+    skyGolden: 0xffb36b,
+    skyNight: 0x1c2440,
+    sun: 0xffd9a0,
+    building: [
+      0xffe8c9, 0xffd9b0, 0xf6c6c6, 0xcfe8d8, 0xcfe0f5,
+      0xfff3d6, 0xf2d7a0, 0xd8e8f2, 0xf7d1c0, 0xe6f2c8,
+    ],
+    roof: [0x8a6f5c, 0x6f7d8a, 0x9a8a7a, 0x7a6a8a],
+    palmTrunk: 0x8a6a48,
+    palmLeaf: 0x3fae5a,
+    neon: [0xff2e88, 0x00e5ff, 0xffe600, 0x7c4dff, 0xff6d00],
+    pinkCar: 0xff2e88, // hot-pink hero car
+  },
+
+  // -- districts (west -> east, south -> north) ----------------------------
+  districts: [
+    { name: 'Old Port', x0: -154, x1: -66, z0: -154, z1: 154 },
+    { name: 'Calle Verde', x0: -66, x1: 22, z0: -154, z1: -22 },
+    { name: 'Downtown', x0: -66, x1: 22, z0: -22, z1: 110 },
+    { name: 'Northside', x0: -66, x1: 22, z0: 110, z1: 154 },
+    { name: 'Marina', x0: 22, x1: 154, z0: -154, z1: 154 },
+  ],
+  streets: ['Harbor Blvd', 'Palm Row', 'Calle Verde', 'Marina Way', 'Dock St', 'Sunset Ave', 'Pier Rd'],
+
+  // -- landmarks ------------------------------------------------------------
+  landmarks: [
+    { name: 'MERIDIAN BANK', x: -44, z: -22 },
+    { name: 'MARINA MOTEL', x: 88, z: -66 },
+    { name: 'CASINO LUNA', x: 44, z: 66 },
+    { name: 'PIER 40', x: 154, z: 22 },
+    { name: 'DOCKSIDE GARAGE', x: -110, z: 88 },
+    { name: 'CLUB VOLT', x: 0, z: 110 },
+    { name: 'HARBOR MARKET', x: -88, z: -110 },
+    { name: 'CALLE VERDE', x: -22, z: -88 },
+  ],
+
+  // -- people ----------------------------------------------------------------
+  hero: { name: 'Cassian Rowe', role: 'DRIVER' },
+  fixer: { name: 'Inez Kade', role: 'FIXER' },
+  dispatch: { name: 'MBPD Dispatch', role: 'DISPATCH' },
+  rook: { name: 'Rook', role: 'HARBOR KINGS' },
+
+  // -- gameplay tuning -------------------------------------------------------
+  walkSpeed: 6.5,
+  runSpeed: 11,
   jumpSpeed: 8.5,
   gravity: 24,
-  playerHealth: 100,
-  pistolAmmo: 12,
-  pistolDamage: 34,
-  punchDamage: 18,
-  punchRange: 2.4,
-  shootRange: 70,
-
-  // Cars
   carAccel: 26,
   carBrake: 42,
-  carMaxSpeed: 46,
-  carReverseMax: 14,
-  carSteer: 1.9,
-  carGrip: 6.5,
-  handbrakeGrip: 2.2,
+  carMaxSpeed: 46, // ~165 km/h for the Comet GT
+  carTurn: 1.9,
   trafficSpeed: 11,
-  trafficCount: 14,
-  parkedCount: 12,
-
-  // Police and wanted
-  wantedMax: 5,
-  wantedDecaySeconds: 9,
-  policeCarSpeed: 40,
-  policeFootSpeed: 7.5,
-  policeSpawnRadius: 55,
-  heliWantedAt: 3,
-  bustDistance: 3.2,
-  bustSeconds: 2.5,
-
-  // Economy
-  startMoney: 250,
+  policeSpeed: 40,
+  heliHeight: 42,
+  pistolAmmo: 12,
+  pistolDamage: 34,
+  punchDamage: 20,
+  punchRange: 2.2,
+  packageValue: 150,
   taxiFare: 120,
-  packageReward: 150,
-  missionPayouts: [400, 650, 900, 1500, 2400, 5000],
-  bustFine: 300,
 
-  // Pedestrians
-  pedCount: 26,
-  pedSpeed: 2.2,
-  pedFleeSpeed: 5.5,
-
-  // Clock: one game minute per real second, day starts 19:04.
-  clockStartMinutes: 19 * 60 + 4,
-  clockRate: 1,
-};
-
-export const PALETTE = {
-  skySunset: 0xffb45e,
-  skyNoon: 0x7cc0ff,
-  skyNight: 0x141c3a,
-  skyDawn: 0xffc07a,
-  sunSunset: 0xffc46b,
-  sunNoon: 0xfff2d8,
-  sunNight: 0x9db4ff,
-  fogSunset: 0xf7b478,
-  fogNoon: 0xb8d4f0,
-  fogNight: 0x141a30,
-  sea: 0x2a9db5,
-  sand: 0xefd9a8,
-  grass: 0x6fae56,
-  // Headline of the bright palette: warm light-grey asphalt.
-  asphalt: 0x6e7480,
-  sidewalk: 0xb9bfc9,
-  buildingGlass: 0x3a5a78,
-  carColors: [
-    0xff2e88, // hot pink — the cover car's paint
-    0xff3b30, // bright red
-    0xffd60a, // sunny yellow
-    0x7dff5e, // lime
-    0x2ec5ff, // cyan
-    0xff7a1a, // orange
-    0xa55cff, // violet
-    0xf2f2f2, // white
+  // -- missions ---------------------------------------------------------------
+  missions: [
+    {
+      id: 'M1', name: 'First Wheels', chapter: 'CH. 1 — FIRST WHEELS',
+      brief: 'Welcome to Meridian Bay, Cassian. No car, no crew, no money. Steal something with four wheels and bring it to the garage.',
+      objective: 'Steal a car and reach the Dockside Garage',
+      reward: 250, time: 0,
+    },
+    {
+      id: 'M2', name: 'Courier Run', chapter: 'CH. 2 — COURIER RUN',
+      brief: 'A package for the Marina Motel, ninety seconds, no questions. The Kings are watching the docks — take the long way round.',
+      objective: 'Deliver the package to Marina Motel in 90s',
+      reward: 900, time: 90,
+    },
+    {
+      id: 'M3', name: 'The Pickup', chapter: 'CH. 3 — THE PICKUP',
+      brief: 'Three drops stashed around Calle Verde. Collect all three and do not let the heat climb past two stars.',
+      objective: 'Collect 3 drops around Calle Verde',
+      reward: 1600, time: 0,
+    },
+    {
+      id: 'M4', name: 'Heat', chapter: 'CH. 4 — HEAT',
+      brief: 'The MBPD is on you and they are not letting go. Survive three stars for a full minute. Lose them or outrun them — your call.',
+      objective: 'Survive 3 stars for 60s',
+      reward: 2400, time: 60,
+    },
+    {
+      id: 'M5', name: 'Pier Heist', chapter: 'CH. 5 — PIER HEIST',
+      brief: 'The black Harbor Kings van is parked on Pier 40, keys in it, two gunmen watching it. Take the van. Try not to start a war.',
+      objective: 'Steal the black van from Pier 40',
+      reward: 4850, time: 0,
+    },
+    {
+      id: 'M6', name: 'The Meridian Job', chapter: 'CH. 6 — THE MERIDIAN JOB',
+      brief: 'The bank. Twenty seconds inside while the whole city comes for you. Then the bridge, then the boat, then we are rich. Go.',
+      objective: 'Hold the Meridian Bank for 20s, then escape',
+      reward: 31200, time: 20,
+    },
   ],
-  taxiYellow: 0xffd60a,
-  policeWhite: 0xf2f4f8,
-  policeBlack: 0x232a38,
-  neonPink: 0xff4da6,
-  neonCyan: 0x33e0ff,
-  neonYellow: 0xffe14d,
-  neonLime: 0x9dff57,
+
+  // -- radio ------------------------------------------------------------------
+  radio: [
+    { station: 'WAVE 98.5', song: 'Sunset Drive — Neon Palms' },
+    { station: 'BAY FM 101', song: 'Harbor Lights — The Breakers' },
+    { station: 'VOLT RADIO', song: 'Night Circuit — Rook & Co.' },
+  ],
+
+  // -- REP ladder ---------------------------------------------------------------
+  repRanks: ['Nobody', 'Wheelman', 'Hustler', 'Street King', 'Bay Legend'],
 };
-
-export const DISTRICTS = [
-  { name: 'OLD PORT', x0: -140, x1: -40, z0: -140, z1: 140 },
-  { name: 'DOWNTOWN', x0: -40, x1: 40, z0: -140, z1: 140 },
-  { name: 'CALLE VERDE', x0: -140, x1: 40, z0: 40, z1: 140 },
-  { name: 'NORTHSIDE', x0: -40, x1: 140, z0: -140, z1: -40 },
-  { name: 'MARINA', x0: 40, x1: 140, z0: -40, z1: 140 },
-];
-
-export const STREETS = [
-  { name: 'COAST ROAD', vertical: true, at: 120 },
-  { name: 'PALM ROW', vertical: true, at: 80 },
-  { name: 'FLAMINGO ST', vertical: false, at: 80 },
-  { name: 'HARBOR AVE', vertical: true, at: 0 },
-  { name: 'MARINA BLVD', vertical: false, at: 0 },
-  { name: 'CALLE VERDE', vertical: false, at: 40 },
-  { name: 'PIER LANE', vertical: true, at: 40 },
-  { name: 'LIGHTHOUSE WAY', vertical: false, at: -80 },
-];
-
-export const LANDMARKS = [
-  { name: 'MERIDIAN BANK', x: -20, z: -20, w: 26, d: 18, h: 46 },
-  { name: 'PALM MOTEL', x: 60, z: 60, w: 22, d: 14, h: 16 },
-  { name: 'CASINO ROYALE', x: 20, z: 100, w: 28, d: 20, h: 30 },
-  { name: 'THE CANNERY', x: -100, z: 20, w: 24, d: 16, h: 14 },
-  { name: 'SURF SHACK', x: 130, z: -60, w: 12, d: 10, h: 8 },
-  { name: 'VELA MOTORS', x: 60, z: -100, w: 24, d: 16, h: 12 },
-  { name: 'COCO MOTEL', x: -60, z: 100, w: 20, d: 14, h: 15 },
-  { name: 'NEON GYM', x: 100, z: 20, w: 16, d: 14, h: 18 },
-];
-
-export const RADIO_STATIONS = [
-  { name: 'MERIDIAN FM 98.1', songs: ['Sunset Static — The Palms', 'Neon Drive — Cassia Blue', 'Bay Lights — The Breakers'] },
-  { name: 'BAYWAVE 104.5', songs: ['Tide Runner — Sol & the Keys', 'Golden Hour — Marina Vale', 'Pier Lights — The Gulls'] },
-  { name: 'NEON NIGHTS 91.3', songs: ['Midnight Chrome — Vex Nine', 'Glass City — Night Parade', 'Afterglow — Inez'] },
-];
-
-export const CAR_MODELS = [
-  { name: 'Comet GT', kind: 'sports', top: 52, accel: 32 },
-  { name: 'Vela Sedan', kind: 'sedan', top: 42, accel: 26 },
-  { name: 'Harbor Van', kind: 'van', top: 36, accel: 20 },
-  { name: 'City Taxi', kind: 'taxi', top: 44, accel: 26 },
-  { name: 'Cruiser', kind: 'police', top: 46, accel: 30 },
-];
-
-export const REP_RANKS = [
-  { at: 0, name: 'NOBODY' },
-  { at: 100, name: 'STREET SOLDIER' },
-  { at: 400, name: 'WHEELMAN' },
-  { at: 1000, name: 'HEAT SEEKER' },
-  { at: 2500, name: 'BAY LEGEND' },
-];
-
-export function districtAt(x, z) {
-  for (const d of DISTRICTS) {
-    if (x >= d.x0 && x < d.x1 && z >= d.z0 && z < d.z1) return d.name;
-  }
-  return x >= CONFIG.beachX ? 'THE PIER' : 'DOWNTOWN';
-}
-
-export function streetAt(x, z) {
-  let best = null;
-  let bestD = Infinity;
-  for (const s of STREETS) {
-    const d = s.vertical ? Math.abs(x - s.at) : Math.abs(z - s.at);
-    if (d < bestD) {
-      bestD = d;
-      best = s.name;
-    }
-  }
-  return best ?? 'PALM ROW';
-}
-
-export function repRank(rep) {
-  let current = REP_RANKS[0];
-  let next = null;
-  for (let i = 0; i < REP_RANKS.length; i++) {
-    if (rep >= REP_RANKS[i].at) current = REP_RANKS[i];
-    else {
-      next = REP_RANKS[i];
-      break;
-    }
-  }
-  return { current, next };
-}

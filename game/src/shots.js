@@ -1,288 +1,167 @@
-// Deterministic staged scenes for the four screenshots.
-// ?shot=chase|onfoot|dialog|progress&seed=1 sets money, day, time,
-// wanted, mission, camera and traffic, then marks window.__shotReady
-// once the frame has settled. The game itself keeps running behind
-// the staged state, so every shot is a real render of the live game.
-// The cover is the late-mission chase: M6, four stars, helicopter,
-// $31,200, golden hour, hot-pink Comet GT — never a menu.
-
+// Meridian Bay — deterministic screenshot staging (?shot=chase|foot|dialog|mission).
+// Each shot sets money, day, clock, mission, wanted, positions and dialog so
+// the four dossier frames are stable and readable. No randomness here.
 import { CONFIG } from './config.js';
-import { applyTimeOfDay } from './render.js';
-import { startMission } from './missions.js';
-import { addWanted, spawnUnits } from './police.js';
+import { createCar, CAR_CLASSES } from './vehicles.js';
 
-function setClock(G, day, hour, minute) {
-  G.clockMinutes = (day - 1) * 1440 + hour * 60 + minute;
-}
-
-function putPlayerInCar(G, modelName, x, z, heading, speed) {
-  const car = G.cars.find((c) => c.model.name === modelName);
-  if (!car) return null;
-  car.x = x;
-  car.z = z;
-  car.heading = heading;
-  car.speed = speed;
-  car.traffic = false;
-  car.condition = 92;
-  const p = G.player;
-  p.inCar = car;
-  p.mesh.visible = false;
-  p.x = x;
-  p.z = z;
-  G.rig.mode = 'chase';
-  G.rig.yaw = heading;
-  return car;
-}
-
-function stageTrafficOnRoad(G, roadX, zFrom, zTo, count) {
-  let placed = 0;
-  for (const car of G.cars) {
-    if (placed >= count) break;
-    if (car === G.player.inCar) continue;
-    if (car.model.kind === 'police') continue;
-    const z = zFrom + ((zTo - zFrom) * placed) / Math.max(1, count - 1);
-    car.x = roadX + (placed % 2 === 0 ? -3.2 : 3.2);
-    car.z = z;
-    car.heading = placed % 2 === 0 ? 0 : Math.PI;
-    car.speed = 9;
-    car.traffic = true;
-    placed++;
-  }
-}
-
-function stagePedsNear(G, x, z, count, radius) {
-  let placed = 0;
-  for (const ped of G.peds) {
-    if (placed >= count) break;
-    const angle = (placed / count) * Math.PI * 2;
-    ped.x = x + Math.cos(angle) * radius * (0.5 + (placed % 3) * 0.25);
-    ped.z = z + Math.sin(angle) * radius * (0.5 + (placed % 3) * 0.25);
-    ped.heading = angle + Math.PI;
-    ped.idle = 30;
-    placed++;
-  }
-}
+const SHOT_DEFS = {
+  chase: { file: '1-chase.jpg', label: 'M6 chase cover' },
+  foot: { file: '2-onfoot.jpg', label: 'M1 on foot' },
+  dialog: { file: '3-dialog.jpg', label: 'M5 pier brief' },
+  mission: { file: '4-progress.jpg', label: 'M4 passed' },
+};
 
 export function applyShot(G, name) {
-  G.shot = { name, frames: 0, ready: false };
-  const p = G.player;
-
-  if (name === 'title') {
-    // Title screen over downtown at golden hour.
-    G.money = 250;
-    G.rep = 120;
-    setClock(G, 1, 19, 4);
-    G.radioIndex = 0;
-    G.songIndex = 0;
-    applyTimeOfDay(G.view, 'sunset', G.city);
-    startMission(G, 0);
-    p.x = 0;
-    p.z = 60;
-    p.mesh.position.set(p.x, 0, p.z);
-    G.rig.mode = 'fixed';
-    G.rig.fixedPos = { x: 55, y: 42, z: 130 };
-    G.rig.fixedLook = { x: -10, y: 8, z: 0 };
-    G.screen = 'title';
-    G.hud.showScreen('screen-title');
-    return;
-  }
+  const s = G.state;
+  if (!SHOT_DEFS[name]) return false;
+  // reset the world to a clean staged state
+  G.police.setWanted(0);
+  G.combat.clearGunmen();
+  G.dialog.hide();
+  G.ui.hideAllOverlays();
+  s.dispatchLine = '';
+  s.shotMode = true;
 
   if (name === 'chase') {
-    // COVER: late-mission chase, M6, four stars, helicopter, $31,200.
-    G.money = 31200;
-    G.rep = 1840;
-    setClock(G, 3, 18, 42);
-    G.radioIndex = 0;
-    G.songIndex = 1;
-    applyTimeOfDay(G.view, 'sunset', G.city);
-    startMission(G, 5);
-    // Escape stage: the vault is ours and the chase is on — no
-    // "Get back to the bank!" toast spamming the cover frame.
-    G.missions.current.stage = 2;
-    G.missions.current.holdLeft = 14;
-    G.missions.current.stageLabel = 'STAGE 3/4';
-    G.missions.current.target = { x: -60, z: 100 };
-    G.missions.beacon.position.set(-60, 30, 100);
-    G.missions.ring.position.set(-60, 0.15, 100);
-    // The car starts on the hidden package at (120, 60) in other scenes:
-    // mark it taken here so the cover money stays exactly $31,200.
-    const pkg = G.missions.packages.find((pk) => pk.x === 120 && pk.z === 60);
-    if (pkg) {
-      pkg.taken = true;
-      pkg.mesh.visible = false;
-    }
-    const car = putPlayerInCar(G, 'Comet GT', 120, 0, 0, 41.4);
-    // Hot pink paint so the sports car pops against the bright road.
-    car.mesh.userData.paint.color.setHex(0xff2e88);
-    car.color = 0xff2e88;
-    G.shot.drive = () => {
-      if (car) {
-        car.speed = 41.4;
-        car.heading = 0;
-        car.x = 120;
-      }
-    };
-    // Police: three cruisers converging ahead of the player, in frame
-    // of the chase camera (which sits behind the car). All three are
-    // spawned up front so every unit gets a staged spot. They are staged
-    // far ahead: the units close at ~80 m/s relative to the player, so
-    // a close stage would have them pass the car before the shot.
-    addWanted(G, 4, 'Bank alarm');
-    spawnUnits(G, 3);
-    const units = G.police.units;
-    const spots = [[120, 85, 'PURSUIT'], [110, 75, 'CLOSING IN'], [130, 95, 'CLOSING IN']];
-    units.forEach((u, i) => {
-      const s = spots[i % spots.length];
-      u.x = s[0];
-      u.z = s[1];
-      u.heading = Math.PI;
-      u.speed = 40;
-      u.status = s[2];
+    // -- COVER: M6 "The Meridian Job" late-mission chase, golden hour --------
+    G.render.setTimeOfDay('golden');
+    s.money = 31200;
+    s.day = 3;
+    s.clock = '18:42';
+    s.rep = 1840;
+    G.missions.startMission(5);
+    G.missions.stageForShot(2, 0);
+    // player in the hot-pink Comet GT, east on Harbor Blvd (z = 22)
+    const car = createCar(G.scene, 5, CONFIG.palette.pinkCar, 0, 22, Math.PI / 2);
+    G.enterCar(car, 149 / 3.6);
+    car.speed = 149 / 3.6; // 149 km/h
+    s.carCondition = 92;
+    // police formation AHEAD (roadblock): negative `back` = ahead of the
+    // player, facing back toward him — all four stay in front of the camera
+    G.police.setWanted(4);
+    G.police.stageFormation(
+      { x: 0, z: 22 }, Math.PI / 2,
+      [
+        { back: -24, side: -3.6, face: 'toward' },
+        { back: -31, side: 4.2, face: 'toward' },
+        { back: -40, side: -4.8, face: 'toward' },
+        { back: -52, side: 3.4, face: 'toward' },
+      ],
+    );
+    // police formation AHEAD of the player (roadblock composition): the chase
+    // camera sits behind the player, so units behind it would be out of frame
+    const t1 = createCar(G.scene, 0, 0xd8d3c8, 88, 22, Math.PI / 2);
+    t1.speed = 30;
+    const t2 = createCar(G.scene, 1, 0x3a7bd5, 115, 22, Math.PI / 2);
+    t2.speed = 28;
+    const t3 = createCar(G.scene, 2, 0x8a94a0, 66, 15.5, -Math.PI / 2);
+    t3.speed = 24;
+    G.stagedCars = [car, t1, t2, t3];
+    G.freezeTraffic = true;
+    G.camOverride = { dist: 9.5, height: 2.7, pitch: 0.14 };
+    G.dialog.showNow(
+      'Inez Kade', 'FIXER',
+      'Stay on the bridge, Cassian — the whole city is coming for you. Do NOT stop.',
+      30,
+    );
+    s.dispatchLine = 'DISPATCH: All units — suspect is hot pink, east on Harbor Blvd. Code 3.';
+  } else if (name === 'foot') {
+    // -- M1 on foot, DAY 1, dusk ----------------------------------------------
+    G.render.setTimeOfDay('dawn');
+    s.money = 250;
+    s.day = 1;
+    s.clock = '17:20';
+    s.rep = 40;
+    G.missions.startMission(0);
+    // Cassian on the sidewalk next to a parked sedan, camera over the shoulder
+    G.exitCar();
+    G.player.setPos(-8, 30, 2.51); // facing the parked sedan at (-4, 24.5)
+    const parked = createCar(G.scene, 0, 0xd8d3c8, -4, 24.5, Math.PI / 2);
+    G.stagedCars = [parked];
+    G.camOverride = { dist: 7.5, height: 2.6, pitch: 0.24 };
+    G.dialog.showNow(
+      'Inez Kade', 'FIXER',
+      'Welcome to Meridian Bay, Cassian. No car, no crew, no money. Steal something with four wheels and bring it to the garage.',
+      30,
+    );
+    s.dispatchLine = '';
+  } else if (name === 'dialog') {
+    // -- M5 Pier Heist brief, noon, player at the pier with the black van ------
+    G.render.setTimeOfDay('noon');
+    s.money = 4850;
+    s.day = 2;
+    s.clock = '11:20';
+    s.rep = 860;
+    G.missions.startMission(4);
+    G.exitCar();
+    // The black van parks at the NEAR end of the pier (178, 22) — the middle
+    // of the pier is full of market stalls that swallow a car whole.
+    G.player.setPos(170, 30, 2.36); // facing the van at (178, 22)
+    // The pier deck sits at y = 1.5 — the van and the gunmen stand ON it,
+    // not sunk inside it (the v6 first pass buried them).
+    const van = createCar(G.scene, 3, 0x111114, 178, 22, Math.PI / 2);
+    van.mesh.position.y = 1.5;
+    G.stagedCars = [van];
+    // two Harbor Kings gunmen watching the van
+    const g1 = G.combat.spawnGunman(174, 17, Math.PI);
+    g1.mesh.position.y = 1.5;
+    const g2 = G.combat.spawnGunman(182, 27, -Math.PI / 2);
+    g2.mesh.position.y = 1.5;
+    G.camOverride = { dist: 7.5, height: 2.6, pitch: 0.26 };
+    G.dialog.showNow(
+      'Inez Kade', 'FIXER',
+      'The black Harbor Kings van is parked on Pier 40, keys in it, two gunmen watching it. Take the van. Try not to start a war.',
+      30,
+    );
+    s.dispatchLine = '';
+  } else if (name === 'mission') {
+    // -- M4 "Heat" PASSED, neon night, mission-passed panel --------------------
+    G.render.setTimeOfDay('night');
+    s.money = 18450;
+    s.day = 3;
+    s.clock = '23:33';
+    s.rep = 1240;
+    G.missions.startMission(3);
+    const car = createCar(G.scene, 1, 0x3a7bd5, 44, 66, 0);
+    G.enterCar(car, 8);
+    car.speed = 8;
+    G.stagedCars = [car];
+    G.police.setWanted(0);
+    G.camOverride = { dist: 9.5, height: 3.4, pitch: 0.3 };
+    G.ui.showMissionPassed(CONFIG.missions[3], {
+      reward: 2400, time: '60s survived', stars: 3, packages: 4,
+      next: CONFIG.missions[4],
     });
-    G.police.heliActive = true;
-    G.police.heli.visible = true;
-    stageTrafficOnRoad(G, 120, -120, -40, 4);
-    // Oncoming traffic in the opposite lane, ahead of the player.
-    let oncoming = 0;
-    for (const c of G.cars) {
-      if (oncoming >= 2) break;
-      if (c === G.player.inCar || c.model.kind === 'police' || !c.traffic) continue;
-      c.x = 116.8;
-      c.z = 110 + oncoming * 25;
-      c.heading = Math.PI;
-      c.speed = 9;
-      oncoming++;
-    }
-    // Every other traffic car parks in the far west, out of frame: a
-    // stray taxi once cut diagonally across the player's car and its
-    // roof sign read as a yellow box on the Comet GT.
-    let parked = 0;
-    for (const c of G.cars) {
-      if (c === G.player.inCar || c.model.kind === 'police' || !c.traffic) continue;
-      if (Math.abs(c.x - 116.8) < 1 && c.z > 100) continue; // the oncoming pair
-      if (c.z < -30 && Math.abs(c.x - 120) < 4) continue; // the staged rear pair
-      c.traffic = false;
-      c.speed = 0;
-      c.x = -118 + (parked % 4) * 8;
-      c.z = -118 + Math.floor(parked / 4) * 8;
-      c.heading = 0;
-      parked++;
-    }
-    // Peds on the east sidewalk, clear of the road, so the chase car
-    // never clips one (a hit would add a fifth star).
-    stagePedsNear(G, 134, 30, 6, 5);
-    G.dialog.clear();
-    G.dialog.show('inez', 'Four stars and Air One overhead — hold the line, Cassian, the vault is almost ours.', 60);
-    G.screen = 'play';
-    G.hud.hideScreens();
-    return;
+    G.dialog.showNow(
+      'Inez Kade', 'FIXER',
+      'You shook three stars and lived. The Kings are impressed — and the pier job is yours.',
+      30,
+    );
+    s.dispatchLine = 'DISPATCH: All units stand down. Suspect lost on Marina Way.';
   }
-
-  if (name === 'onfoot') {
-    // On foot, M1 First Wheels: Cassian beside a parked car at dusk,
-    // the gold beacon marking the Marina job in the distance.
-    G.money = 250;
-    G.rep = 120;
-    setClock(G, 1, 19, 4);
-    G.radioIndex = 0;
-    G.songIndex = 0;
-    applyTimeOfDay(G.view, 'sunset', G.city);
-    startMission(G, 0);
-    p.x = 0;
-    p.z = 60;
-    p.heading = Math.PI * 0.85;
-    p.mesh.position.set(p.x, 0, p.z);
-    p.mesh.rotation.y = p.heading;
-    p.mesh.visible = true;
-    // Park a stealable sedan right beside him.
-    const sedan = G.cars.find((c) => c.model.kind === 'sedan' && !c.traffic);
-    if (sedan) {
-      sedan.x = 4;
-      sedan.z = 64;
-      sedan.heading = Math.PI;
-      sedan.speed = 0;
-    }
-    G.rig.mode = 'follow';
-    G.rig.yaw = Math.PI * 0.9;
-    G.rig.distance = 9.5;
-    stageTrafficOnRoad(G, 0, -60, 30, 3);
-    stagePedsNear(G, 0, 60, 7, 12);
-    G.dialog.clear();
-    G.dialog.show('inez', 'First: get wheels. Any car on the street. Walk up and press E.', 60);
-    G.screen = 'play';
-    G.hud.hideScreens();
-    return;
-  }
-
-  if (name === 'dialog') {
-    // M5 Pier Heist brief at noon, $4,850 — staged ON the pier so the
-    // black Harbor Kings van (the mission's objective) is in frame
-    // with the sea and the lighthouse behind it. Panel and dialog name
-    // the same mission: the fixer briefs the van job, and the panel
-    // shows M5's objective — no mismatch like v3's M6 panel + M5 line.
-    G.money = 4850;
-    G.rep = 640;
-    setClock(G, 2, 11, 20);
-    G.radioIndex = 1;
-    G.songIndex = 0;
-    applyTimeOfDay(G.view, 'noon', G.city);
-    startMission(G, 4);
-    p.x = 140;
-    p.z = 6;
-    p.heading = Math.PI * 0.5;
-    p.mesh.position.set(p.x, 0, p.z);
-    p.mesh.rotation.y = p.heading;
-    // Fixed camera from the south side of the pier: Cassian, the black
-    // van, the beacon pillar, the lighthouse and the sea all in frame.
-    G.rig.mode = 'fixed';
-    G.rig.fixedPos = { x: 116, y: 13, z: 36 };
-    G.rig.fixedLook = { x: 168, y: 2, z: -2 };
-    stageTrafficOnRoad(G, 120, -60, 30, 4);
-    stagePedsNear(G, 140, 6, 6, 10);
-    G.dialog.clear();
-    G.dialog.show('inez', 'The Harbor Kings keep a black van on the pier. Take it. Bring it to the hideout.', 60);
-    G.screen = 'play';
-    G.hud.hideScreens();
-    return;
-  }
-
-  if (name === 'progress') {
-    // Mission-passed screen, neon night, $18,450.
-    G.money = 18450;
-    G.rep = 980;
-    setClock(G, 3, 23, 33);
-    G.radioIndex = 2;
-    G.songIndex = 2;
-    applyTimeOfDay(G.view, 'night', G.city);
-    G.missions.packagesFound = 6;
-    // M4 just passed, so the current index still points at M4; the
-    // HUD's NEXT line then correctly names M5: Pier Heist.
-    G.missions.currentIndex = 3;
-    G.missions.started = true;
-    G.rig.mode = 'fixed';
-    G.rig.fixedPos = { x: 60, y: 48, z: 120 };
-    G.rig.fixedLook = { x: -10, y: 10, z: -10 };
-    G.hud.showPassed({
-      title: 'M4: Heat — PASSED',
-      stars: 3,
-      stats: 'Payout +$1,500 · Time 2:41 · Max wanted ★★★☆☆ · Packages 6/10',
-      quote: 'Inez Kade: "You vanished like smoke. The pier van is next — the Harbor Kings won\'t miss it."',
-      next: 'NEXT: M5: Pier Heist',
-    });
-    G.screen = 'passed';
-    return;
-  }
-
-  // Unknown shot: fall back to plain play.
-  G.screen = 'play';
-  G.hud.hideScreens();
+  // Sync the HUD state to the staged values. The simulation is frozen in shot
+  // mode, so the HUD would otherwise show empty panels.
+  s.policeUnits = G.police.units;
+  s.heliVisible = G.police.heli.group.visible;
+  s.heliPos = s.heliVisible
+    ? { x: G.police.heli.group.position.x, z: G.police.heli.group.position.z } : null;
+  s.mission = G.missions.def();
+  s.missionSpot = G.missions.started
+    ? { x: G.missions.marker.position.x, z: G.missions.marker.position.z } : null;
+  s.missionStageText = G.missions.stageText();
+  if (name === 'mission') s.missionStageText = 'Survived 60s';
+  s.missionStageFrac = name === 'chase' ? 0.85 : name === 'mission' ? 1 : 0.25;
+  const nextIdx = G.missions.current + 1;
+  s.missionNextText = nextIdx < CONFIG.missions.length
+    ? `NEXT: ${CONFIG.missions[nextIdx].id} — ${CONFIG.missions[nextIdx].name}`
+    : 'NEXT: STORY COMPLETE';
+  s.pos = s.inCar && G.currentCar ? G.currentCar.pos : G.player.pos;
+  s.heading = s.inCar && G.currentCar ? G.currentCar.heading : G.player.heading;
+  s.wanted = G.police.wanted;
+  s.speedKmh = s.inCar && G.currentCar ? Math.abs(G.currentCar.speed) * 3.6 : 0;
+  s.carName = s.inCar && G.currentCar ? G.currentCar.name : '';
+  s.ammo = G.combat.ammo;
+  return true;
 }
 
-export function shotReady(G) {
-  if (!G.shot || G.shot.ready) return;
-  G.shot.frames++;
-  if (G.shot.frames >= 150) {
-    G.shot.ready = true;
-    window.__shotReady = true;
-  }
-}
+export { SHOT_DEFS };

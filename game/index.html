@@ -1,208 +1,199 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MERIDIAN BAY — Open-World Crime in a Sun-Soaked Port City</title>
+<link rel="icon" href="data:,">
+<title>MERIDIAN BAY — a Grand Theft Auto VI style open world</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020;
-    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #fff; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0d1230; font-family: Arial, Helvetica, sans-serif; color: #fff; }
   #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  .panel { position: fixed; background: rgba(8, 14, 30, 0.72); border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); z-index: 5; }
-  .gold { color: #ffd34d; }
-  .green { color: #7dff9a; }
-  .dim { color: #b9c4d6; font-size: 11px; letter-spacing: 1px; }
-  /* mission panel, top-left */
-  #mission-panel { top: 12px; left: 12px; min-width: 300px; max-width: 360px; }
-  #mission-chapter { font-size: 11px; letter-spacing: 2px; color: #ffd34d; font-weight: 700; }
-  #mission-name { font-size: 17px; font-weight: 800; margin: 1px 0 3px; }
-  #mission-objective { font-size: 13px; color: #e8eef7; line-height: 1.35; }
-  #mission-stage { margin-top: 6px; height: 7px; background: rgba(255,255,255,0.16); border-radius: 4px; overflow: hidden; }
-  #mission-stage-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffd34d, #ff9a3d); }
-  #mission-next { font-size: 11px; color: #ffd34d; margin-top: 4px; letter-spacing: 0.5px; }
-  /* police response panel, left under mission panel */
-  #police-panel { top: 158px; left: 12px; width: 300px; display: none; }
-  #police-panel .phead { font-size: 11px; letter-spacing: 2px; color: #ff8d7a; font-weight: 700; }
-  #police-panel .unit { font-size: 12px; padding: 2px 0; display: flex; justify-content: space-between; }
-  #police-panel .unit .st { color: #ffd34d; font-weight: 700; }
-  #police-code { font-size: 11px; color: #b9c4d6; margin-top: 3px; }
-  /* money + wanted, top-right */
-  #money-panel { top: 12px; right: 12px; text-align: right; min-width: 190px; }
-  #money { font-size: 30px; font-weight: 900; color: #7dff9a; line-height: 1; }
-  #money-panel .district { font-size: 13px; font-weight: 800; color: #ffd34d; letter-spacing: 1px; margin-top: 3px; }
-  #clock { font-size: 12px; color: #e8eef7; }
-  #wanted-stars { font-size: 22px; letter-spacing: 3px; margin-top: 2px; color: #ffd34d; }
-  #wanted-stars .off { color: rgba(255,255,255,0.25); }
-  #insight { display: none; font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #ff5d47; }
-  #rep-row { margin-top: 5px; }
-  #rep-bar { height: 6px; background: rgba(255,255,255,0.16); border-radius: 3px; overflow: hidden; }
-  #rep-fill { height: 100%; width: 12%; background: linear-gradient(90deg, #7ab8ff, #c07dff); }
-  #rep-label { font-size: 10px; letter-spacing: 1px; color: #b9c4d6; margin-top: 2px; }
-  /* health + ammo + minimap, bottom-left */
-  #vitals { bottom: 208px; left: 12px; width: 190px; }
-  #health-label { font-size: 11px; letter-spacing: 1px; color: #b9c4d6; display: flex; justify-content: space-between; }
-  #health-bar { height: 9px; background: rgba(255,255,255,0.16); border-radius: 5px; overflow: hidden; margin: 3px 0 5px; }
-  #health-fill { height: 100%; width: 100%; background: #54d977; }
-  #ammo { font-size: 13px; font-weight: 800; color: #ffd34d; }
-  #weapons { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
-  .wslot { font-size: 10px; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 4px;
-    background: rgba(255,255,255,0.12); color: #b9c4d6; }
-  .wslot.on { background: rgba(255, 211, 77, 0.25); color: #ffd34d; }
-  .wslot.lock { opacity: 0.55; }
-  #minimap-wrap { bottom: 12px; left: 12px; width: 184px; height: 184px; border-radius: 50%;
-    overflow: hidden; border: 3px solid rgba(255,255,255,0.35); background: #24361f; padding: 0; }
-  #minimap { width: 100%; height: 100%; display: block; }
-  #map-street { position: fixed; left: 20px; bottom: 200px; z-index: 6; font-size: 12px; font-weight: 700;
-    color: #fff; text-shadow: 0 1px 3px #000; letter-spacing: 0.5px; }
-  /* dialog, bottom-centre */
-  #dialog { bottom: 16px; left: 50%; transform: translateX(-50%); width: 520px; max-width: 62vw;
-    display: none; padding: 10px 14px; }
-  #dialog .who { display: flex; align-items: center; gap: 10px; }
-  #dialog .avatar { width: 42px; height: 42px; border-radius: 50%; background: #ff2e88; color: #fff;
-    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; flex: none; }
-  #dialog .avatar.pd { background: #2f6fb2; }
-  #dialog-name { font-size: 14px; font-weight: 800; }
-  #dialog-role { font-size: 10px; letter-spacing: 2px; color: #ffd34d; }
-  #dialog-line { font-size: 13px; color: #e8eef7; margin-top: 6px; line-height: 1.4; }
-  /* drive panel, bottom-right */
-  #drive-panel { bottom: 12px; right: 12px; min-width: 210px; text-align: right; display: none; }
-  #speed { font-size: 34px; font-weight: 900; line-height: 1; }
-  #car-name { font-size: 13px; font-weight: 800; color: #ffd34d; }
-  #car-cond { height: 6px; background: rgba(255,255,255,0.16); border-radius: 3px; overflow: hidden; margin: 4px 0; }
-  #car-cond-fill { height: 100%; width: 100%; background: #54d977; }
-  #radio-line, #song-line { font-size: 11px; color: #b9c4d6; }
-  /* toast + hint */
-  #toast { top: 12px; left: 50%; transform: translateX(-50%); display: none; font-size: 13px;
-    font-weight: 700; color: #ffd34d; }
-  #hint { bottom: 210px; left: 50%; transform: translateX(-50%); display: none; font-size: 12px;
-    color: #e8eef7; }
-  #crosshair { position: fixed; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
-    z-index: 4; display: none; pointer-events: none; }
-  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.85); }
-  #crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; }
-  #crosshair::after { top: 6px; left: 0; width: 14px; height: 2px; }
-  /* full screens */
-  .screen { position: fixed; inset: 0; z-index: 20; display: none; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center;
-    background: linear-gradient(180deg, rgba(8,14,30,0.55), rgba(8,14,30,0.85)); padding: 24px; }
-  .screen h1 { font-size: 72px; font-weight: 900; letter-spacing: 4px; color: #ffd34d;
-    text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
-  .screen h2 { font-size: 22px; font-weight: 700; margin-top: 6px; }
-  .screen p { font-size: 14px; color: #e8eef7; margin-top: 10px; max-width: 560px; line-height: 1.5; }
-  .screen .press { margin-top: 22px; font-size: 13px; letter-spacing: 2px; color: #7dff9a; font-weight: 700; }
-  .screen .features { margin-top: 16px; font-size: 12px; color: #b9c4d6; line-height: 1.7; }
-  .screen kbd { background: rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 7px; font-family: inherit; }
-  .big-pass { font-size: 44px; font-weight: 900; color: #7dff9a; letter-spacing: 2px; }
-  .pass-stars { font-size: 30px; color: #ffd34d; letter-spacing: 6px; margin-top: 8px; }
-  .screen .stats { font-size: 14px; color: #e8eef7; margin-top: 10px; }
-  .screen .quote { font-size: 14px; color: #ffd34d; margin-top: 10px; font-style: italic; }
-  #loading { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
-    background: #0b1020; font-size: 14px; letter-spacing: 2px; color: #b9c4d6; }
+  .hidden { display: none !important; }
+  .panel { background: rgba(10, 14, 28, 0.72); border: 1px solid rgba(255,255,255,0.22); border-radius: 8px; padding: 8px 10px; backdrop-filter: blur(2px); }
+  /* -- top-left: mission panel -- */
+  #mission-panel { position: fixed; top: 12px; left: 12px; width: 330px; z-index: 5; }
+  #mission-chapter { font-size: 11px; letter-spacing: 2px; color: #ffe600; font-weight: bold; }
+  #mission-name { font-size: 19px; font-weight: 900; margin: 2px 0; text-transform: uppercase; }
+  #mission-objective { font-size: 13px; color: #dfe8ff; line-height: 1.35; }
+  #mission-stage { font-size: 12px; color: #9be8ff; margin-top: 5px; font-weight: bold; }
+  .stage-bar { height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  #mission-stage-fill { height: 100%; width: 0%; background: #ffe600; }
+  #mission-next { font-size: 11px; color: #9be8ff; margin-top: 5px; letter-spacing: 1px; }
+  /* -- top-right: money / wanted / time -- */
+  #status-panel { position: fixed; top: 12px; right: 12px; width: 300px; z-index: 5; text-align: right; }
+  #hud-money { font-size: 34px; font-weight: 900; color: #39d353; text-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+  #hud-stars { font-size: 26px; letter-spacing: 4px; color: #ffe600; text-shadow: 0 2px 4px rgba(0,0,0,0.7); }
+  #hud-stars.hot { color: #ff2e2e; }
+  .status { font-size: 13px; font-weight: 900; letter-spacing: 2px; color: #39d353; }
+  .status.wanted { color: #ffb02e; }
+  .status.in-sight { color: #ff2e2e; animation: blink 0.8s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  #hud-day, #hud-clock { font-size: 13px; color: #dfe8ff; font-weight: bold; }
+  #hud-district { font-size: 15px; font-weight: 900; color: #fff; }
+  #hud-street { font-size: 12px; color: #9be8ff; }
+  /* -- dispatch ticker, top centre -- */
+  #dispatch-line { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; font-size: 12px; color: #ffe9a8; background: rgba(10,14,28,0.6); padding: 5px 12px; border-radius: 12px; max-width: 560px; text-align: center; }
+  /* -- left centre: police panel -- */
+  #police-panel { position: fixed; top: 240px; left: 12px; width: 300px; z-index: 5; }
+  #police-header { font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #ff8a80; margin-bottom: 5px; }
+  .police-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,0.12); }
+  .police-status { color: #ffb02e; font-weight: bold; }
+  /* -- bottom-left: minimap + rep + health -- */
+  #map-panel { position: fixed; left: 12px; bottom: 12px; z-index: 5; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  #minimap-wrap { position: relative; width: 168px; height: 168px; }
+  #minimap { width: 168px; height: 168px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.85); box-shadow: 0 0 0 2px rgba(0,0,0,0.5); background: #1c2440; }
+  #minimap-label { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11px; font-weight: bold; background: rgba(10,14,28,0.8); padding: 2px 8px; border-radius: 8px; }
+  #vitals { width: 168px; }
+  #rep-rank { font-size: 11px; font-weight: 900; color: #ffe600; letter-spacing: 1px; margin-top: 4px; white-space: nowrap; }
+  .bar-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .bar-label { font-size: 10px; font-weight: 900; letter-spacing: 1px; width: 44px; }
+  .bar { flex: 1; height: 10px; background: rgba(255,255,255,0.18); border-radius: 5px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #39d353; }
+  #rep-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ff2e88, #ffe600); }
+  #health-num, #rep-text { font-size: 11px; font-weight: bold; }
+  /* -- bottom-right: speed / car / radio / weapons -- */
+  #drive-panel { position: fixed; right: 12px; bottom: 12px; z-index: 5; text-align: right; }
+  #hud-speed { font-size: 52px; font-weight: 900; line-height: 0.9; text-shadow: 0 2px 8px rgba(0,0,0,0.7); }
+  #hud-speed-unit { font-size: 13px; color: #9be8ff; font-weight: bold; }
+  #hud-car { font-size: 16px; font-weight: 900; color: #ffe600; }
+  #hud-condition, #hud-radio { font-size: 12px; color: #dfe8ff; font-weight: bold; }
+  #weapon-slots { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  .weapon { font-size: 11px; font-weight: bold; padding: 5px 8px; border-radius: 6px; background: rgba(10,14,28,0.72); border: 1px solid rgba(255,255,255,0.25); display: flex; flex-direction: column; gap: 1px; min-width: 64px; }
+  .weapon.active { border-color: #ffe600; color: #ffe600; }
+  .weapon.locked { opacity: 0.45; }
+  /* -- bottom centre: dialog -- */
+  #dialog { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6; display: flex; gap: 12px; align-items: center; width: 620px; max-width: 92vw; }
+  #dialog-portrait { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #ffe600; flex-shrink: 0; }
+  #dialog-name { font-size: 12px; font-weight: 900; letter-spacing: 1px; color: #ffe600; }
+  #dialog-text { font-size: 15px; line-height: 1.4; color: #fff; margin-top: 2px; }
+  /* -- toast -- */
+  #toast { position: fixed; left: 50%; top: 42%; transform: translateX(-50%); z-index: 7; font-size: 18px; font-weight: 900; background: rgba(10,14,28,0.8); border: 1px solid #ffe600; padding: 10px 18px; border-radius: 10px; }
+  /* -- full-screen overlays -- */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: linear-gradient(180deg, rgba(13,18,48,0.55), rgba(13,18,48,0.88)); text-align: center; padding: 20px; }
+  .overlay h1 { font-size: 64px; font-weight: 900; letter-spacing: 4px; color: #ff2e88; text-shadow: 0 4px 0 #7c1038, 0 8px 24px rgba(0,0,0,0.6); }
+  .overlay h2 { font-size: 30px; font-weight: 900; letter-spacing: 2px; }
+  .overlay p { font-size: 15px; line-height: 1.6; color: #dfe8ff; max-width: 560px; }
+  .overlay .sub { font-size: 13px; letter-spacing: 3px; color: #ffe600; font-weight: bold; }
+  .overlay button { font-size: 16px; font-weight: 900; letter-spacing: 1px; padding: 12px 28px; border-radius: 10px; border: none; background: #ff2e88; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #7c1038; }
+  .overlay button.secondary { background: #2e6f5e; box-shadow: 0 4px 0 #123c33; }
+  .overlay button:hover { filter: brightness(1.15); }
+  #passed-reward { font-size: 44px; font-weight: 900; color: #39d353; }
+  #passed-stats { font-size: 14px; color: #dfe8ff; font-weight: bold; }
+  #passed-next { font-size: 14px; color: #9be8ff; font-weight: bold; }
+  .controls { font-size: 13px; color: #9be8ff; line-height: 1.9; text-align: left; background: rgba(10,14,28,0.6); padding: 12px 18px; border-radius: 10px; }
+  .controls b { color: #ffe600; }
 </style>
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
-<div id="loading">LOADING MERIDIAN BAY…</div>
-<div id="crosshair"></div>
 
-<div class="panel" id="mission-panel">
-  <div id="mission-chapter">CHAPTER 1 · THE MERIDIAN JOB</div>
-  <div id="mission-name">M1: First Wheels</div>
-  <div id="mission-objective">Steal any car on the street</div>
-  <div id="mission-stage"><div id="mission-stage-fill"></div></div>
-  <div id="mission-next">NEXT: M2: Courier Run</div>
+<!-- mission panel -->
+<div id="mission-panel" class="panel">
+  <div id="mission-chapter">CH. 1 — FIRST WHEELS</div>
+  <div id="mission-name">M1 — First Wheels</div>
+  <div id="mission-objective">Steal a car and reach the Dockside Garage</div>
+  <div id="mission-stage">Not started</div>
+  <div class="stage-bar"><div id="mission-stage-fill"></div></div>
+  <div id="mission-next">NEXT: M2 — Courier Run</div>
 </div>
 
-<div class="panel" id="police-panel">
-  <div class="phead">MBPD RESPONSE · <span id="police-count"></span></div>
-  <div id="police-units"></div>
-  <div id="police-code"></div>
+<!-- status panel -->
+<div id="status-panel" class="panel">
+  <div id="hud-money">$0</div>
+  <div><span id="hud-stars">☆☆☆☆☆</span> <span id="hud-status" class="status">CLEAR</span></div>
+  <div><span id="hud-day">DAY 1</span> · <span id="hud-clock">09:00</span></div>
+  <div id="hud-district">Downtown</div>
+  <div id="hud-street">Harbor Blvd</div>
 </div>
 
-<div class="panel" id="money-panel">
-  <div id="money">$250</div>
-  <div class="district" id="district">DOWNTOWN</div>
-  <div id="clock">DAY 1 · 19:04</div>
-  <div id="wanted-stars"></div>
-  <div id="insight">IN SIGHT</div>
-  <div id="rep-row">
-    <div id="rep-bar"><div id="rep-fill"></div></div>
-    <div id="rep-label">REP 120 · STREET SOLDIER</div>
+<div id="dispatch-line" class="hidden"></div>
+
+<!-- police panel -->
+<div id="police-panel" class="panel hidden">
+  <div id="police-header">MBPD — CODE 3</div>
+  <div id="police-list"></div>
+</div>
+
+<!-- minimap + vitals -->
+<div id="map-panel">
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="168" height="168"></canvas>
+    <div id="minimap-label">Downtown — Harbor Blvd</div>
+  </div>
+  <div id="vitals" class="panel">
+    <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar"><div id="health-fill"></div></div><span id="health-num">100</span></div>
+    <div class="bar-row"><span class="bar-label">REP</span><div class="bar"><div id="rep-fill"></div></div><span id="rep-text">REP 0</span></div>
+    <div id="rep-rank">Nobody</div>
   </div>
 </div>
 
-<div class="panel" id="vitals">
-  <div id="health-label"><span>HEALTH</span><span id="health-num">100 HP</span></div>
-  <div id="health-bar"><div id="health-fill"></div></div>
-  <div id="ammo">PISTOL 12/12</div>
-  <div id="weapons"></div>
+<!-- drive panel -->
+<div id="drive-panel" class="panel">
+  <div><span id="hud-speed">0</span> <span id="hud-speed-unit">KM/H</span></div>
+  <div id="hud-car">ON FOOT</div>
+  <div id="hud-condition">—</div>
+  <div id="hud-radio">RADIO OFF</div>
+  <div id="weapon-slots"></div>
 </div>
 
-<div class="panel" id="minimap-wrap"><canvas id="minimap" width="184" height="184"></canvas></div>
-<div id="map-street">DOWNTOWN · HARBOR AVE</div>
-
-<div class="panel" id="dialog">
-  <div class="who">
-    <div class="avatar" id="dialog-avatar">IK</div>
-    <div><div id="dialog-name">Inez Kade</div><div id="dialog-role">FIXER</div></div>
+<!-- dialog -->
+<div id="dialog" class="panel hidden">
+  <img id="dialog-portrait" alt="portrait">
+  <div>
+    <div id="dialog-name">Inez Kade — FIXER</div>
+    <div id="dialog-text"></div>
   </div>
-  <div id="dialog-line"></div>
 </div>
 
-<div class="panel" id="drive-panel">
-  <div id="speed">0 km/h</div>
-  <div id="car-name">Comet GT</div>
-  <div id="car-cond"><div id="car-cond-fill"></div></div>
-  <div id="radio-line">♪ MERIDIAN FM 98.1</div>
-  <div id="song-line">Sunset Static — The Palms</div>
-</div>
+<div id="toast" class="hidden"></div>
 
-<div class="panel" id="toast"></div>
-<div class="panel" id="hint"></div>
-
-<div class="screen" id="screen-title" style="display:flex">
+<!-- title screen -->
+<div id="title-screen" class="overlay">
+  <div class="sub">A GRAND THEFT AUTO VI STYLE OPEN WORLD</div>
   <h1>MERIDIAN BAY</h1>
-  <h2>An open-world crime story in a sun-soaked port city</h2>
-  <p>Steal cars, outrun the MBPD, run six jobs for fixer Inez Kade — and pull off
-  the Meridian Job: twenty seconds inside the bank while the whole city comes for you.</p>
-  <div class="features">
-    <kbd>WASD</kbd> move / drive &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump / handbrake<br>
-    <kbd>E</kbd> steal / exit car &nbsp; <kbd>F</kbd> punch &nbsp; <kbd>Click</kbd> shoot<br>
-    <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> radio &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>P</kbd> pause
+  <p>New in town, broke, and already on the MBPD's list. Six jobs stand between Cassian Rowe and the biggest score Meridian Bay has ever seen. Steal cars, lose the cops, run the pier — and do not get caught.</p>
+  <div class="controls">
+    <b>WASD</b> move / drive &nbsp; <b>Mouse drag</b> camera &nbsp; <b>E</b> steal / exit car<br>
+    <b>Click</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>1 / 2</b> weapons &nbsp; <b>Space</b> jump / handbrake<br>
+    <b>Shift</b> run &nbsp; <b>V</b> radio &nbsp; <b>M</b> mute &nbsp; <b>P</b> pause
   </div>
-  <div class="press">Press Enter or click to start</div>
-  <p style="font-size:12px;color:#b9c4d6">An original game. Meridian Bay, Cassian Rowe, Inez Kade — no borrowed names, art or music.</p>
+  <div>
+    <button id="btn-start">START THE JOB</button>
+    <button id="btn-continue" class="secondary hidden">CONTINUE</button>
+  </div>
+  <p style="font-size:12px; color:#9be8ff;">Original fan-made game. Not affiliated with Rockstar Games. Progress saves locally.</p>
 </div>
 
-<div class="screen" id="screen-pause">
+<!-- pause -->
+<div id="pause-screen" class="overlay hidden">
   <h2>PAUSED</h2>
-  <p>Meridian Bay waits for no one. Press <kbd>P</kbd> or click to keep going.</p>
-  <div class="press">Press P to resume</div>
+  <p>Take a breath, Cassian. The city is not going anywhere.</p>
+  <button id="btn-resume">RESUME</button>
 </div>
 
-<div class="screen" id="screen-busted">
-  <h1 style="color:#ff6b5e">BUSTED</h1>
-  <p id="busted-text">The MBPD took you in. You lose $300 bail and the day restarts poorer.</p>
-  <div class="press">Press Enter to try again</div>
+<!-- busted -->
+<div id="busted-screen" class="overlay hidden">
+  <h2>BUSTED</h2>
+  <p id="busted-loss">The MBPD took 10% of your cash.</p>
+  <button id="btn-busted">BACK TO THE STREETS</button>
 </div>
 
-<div class="screen" id="screen-passed">
-  <div class="big-pass" id="passed-title">M4: Heat — PASSED</div>
-  <div class="pass-stars" id="passed-stars">★★★</div>
-  <div class="stats" id="passed-stats"></div>
-  <div class="quote" id="passed-quote"></div>
-  <div class="features" id="passed-next"></div>
-  <div class="press">Press Enter to continue</div>
+<!-- mission passed -->
+<div id="passed-screen" class="overlay hidden">
+  <h2 id="passed-title">MISSION PASSED</h2>
+  <div id="passed-reward">+$0</div>
+  <div id="passed-stats"></div>
+  <div id="passed-next"></div>
+  <button id="btn-passed">CONTINUE</button>
 </div>
 
-<div class="screen" id="screen-complete">
-  <h1 style="font-size:64px">THE MERIDIAN JOB</h1>
-  <h2>Story complete — Cassian Rowe owns Meridian Bay</h2>
-  <p id="complete-stats"></p>
-  <div class="features">Thanks for playing. Free roam stays open — keep the city.</div>
-  <div class="press">Press Enter to free roam</div>
+<!-- story complete -->
+<div id="story-screen" class="overlay hidden">
+  <h2>THE MERIDIAN JOB — COMPLETE</h2>
+  <p>The bank. The bridge. The boat. Cassian Rowe came to Meridian Bay with nothing — and leaves with everything. Inez is already planning the next one.</p>
+  <p>Thanks for playing MERIDIAN BAY.</p>
+  <button id="btn-story">BACK TO TITLE</button>
 </div>
 
 <script type="importmap">
