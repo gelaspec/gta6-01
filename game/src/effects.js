@@ -1,95 +1,111 @@
-// Meridian Bay — particles and one-shot effects: impact bursts, tyre smoke,
-// muzzle flash light, pickup sparkles. One pooled Points cloud, no per-frame
-// allocation.
+// Meridian Bay — particles and screen shake: muzzle flashes, sparks,
+// tire smoke, pickup glints and the golden-hour dust that hangs over the
+// coast road. One pooled Points cloud, no per-frame allocation.
 import * as THREE from 'three';
 
-export function createEffects(scene) {
-  const MAX = 400;
-  const geo = new THREE.BufferGeometry();
-  const positions = new Float32Array(MAX * 3);
-  const colors = new Float32Array(MAX * 3);
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false;
-  scene.add(points);
-  const parts = [];
-  for (let i = 0; i < MAX; i++) parts.push({ alive: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, r: 1, g: 1, b: 1 });
-  let cursor = 0;
-  const tmpColor = new THREE.Color();
+const MAX = 420;
 
-  function spawn(x, y, z, hex, count, speed = 6, up = 4, life = 0.7) {
-    tmpColor.setHex(hex);
-    for (let n = 0; n < count; n++) {
-      const p = parts[cursor];
-      cursor = (cursor + 1) % MAX;
-      p.alive = true;
-      p.x = x; p.y = y; p.z = z;
-      const a = Math.random() * Math.PI * 2;
-      const s = speed * (0.4 + Math.random() * 0.8);
-      p.vx = Math.cos(a) * s;
-      p.vz = Math.sin(a) * s;
-      p.vy = up * (0.4 + Math.random() * 0.9);
-      p.max = life * (0.6 + Math.random() * 0.7);
-      p.life = p.max;
-      p.r = tmpColor.r; p.g = tmpColor.g; p.b = tmpColor.b;
+export class Effects {
+  constructor(scene, renderer) {
+    this.scene = scene;
+    this.renderer = renderer;
+    this.positions = new Float32Array(MAX * 3);
+    this.colors = new Float32Array(MAX * 3);
+    this.vel = new Float32Array(MAX * 3);
+    this.life = new Float32Array(MAX);
+    this.maxLife = new Float32Array(MAX);
+    this.cursor = 0;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 0.55, vertexColors: true, transparent: true, opacity: 0.95,
+      depthWrite: false, sizeAttenuation: true,
+    });
+    this.points = new THREE.Points(geo, mat);
+    this.points.frustumCulled = false;
+    this.points.name = 'particles';
+    scene.add(this.points);
+    // a reusable flash sprite for muzzle + pickups
+    const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
+    const flashMat = new THREE.MeshBasicMaterial({
+      color: 0xfff6c9, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.flash = new THREE.Mesh(flashGeo, flashMat);
+    this.flash.visible = false;
+    scene.add(this.flash);
+    this.flashTime = 0;
+  }
+
+  spawn(x, y, z, color, speed, life) {
+    const i = this.cursor;
+    this.cursor = (this.cursor + 1) % MAX;
+    this.positions[i * 3] = x;
+    this.positions[i * 3 + 1] = y;
+    this.positions[i * 3 + 2] = z;
+    const c = new THREE.Color(color);
+    this.colors[i * 3] = c.r;
+    this.colors[i * 3 + 1] = c.g;
+    this.colors[i * 3 + 2] = c.b;
+    const a = Math.random() * Math.PI * 2;
+    const up = Math.random() * 2 - 0.4;
+    this.vel[i * 3] = Math.cos(a) * speed;
+    this.vel[i * 3 + 1] = up * speed;
+    this.vel[i * 3 + 2] = Math.sin(a) * speed;
+    this.life[i] = life;
+    this.maxLife[i] = life;
+  }
+
+  burst(pos, color, count, speed = 6, life = 0.6) {
+    for (let i = 0; i < count; i++) {
+      this.spawn(pos.x, pos.y + 1, pos.z, color, speed * (0.5 + Math.random()), life * (0.6 + Math.random() * 0.8));
     }
   }
 
-  function update(dt) {
-    let any = false;
+  smoke(pos, count = 3) {
+    for (let i = 0; i < count; i++) {
+      this.spawn(pos.x, pos.y + 0.3, pos.z, 0x8a8f96, 1.6, 1.1);
+    }
+  }
+
+  muzzle(player) {
+    const p = player.focusPoint();
+    const fx = Math.sin(player.focusHeading());
+    const fz = Math.cos(player.focusHeading());
+    this.flash.position.set(p.x + fx * 1.6, p.y + 1.5, p.z + fz * 1.6);
+    this.flash.visible = true;
+    this.flashTime = 0.07;
+    this.burst(new THREE.Vector3(p.x + fx * 1.6, p.y + 1.4, p.z + fz * 1.6), 0xffe14d, 6, 8, 0.25);
+  }
+
+  shake(amount) {
+    this.renderer.addShake(amount);
+  }
+
+  update(dt) {
     for (let i = 0; i < MAX; i++) {
-      const p = parts[i];
-      if (!p.alive) {
-        positions[i * 3 + 1] = -100;
+      if (this.life[i] <= 0) {
+        this.positions[i * 3 + 1] = -100; // park dead particles underground
         continue;
       }
-      any = true;
-      p.life -= dt;
-      if (p.life <= 0) {
-        p.alive = false;
-        positions[i * 3 + 1] = -100;
-        continue;
+      this.life[i] -= dt;
+      this.positions[i * 3] += this.vel[i * 3] * dt;
+      this.positions[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
+      this.positions[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
+      this.vel[i * 3 + 1] -= 5 * dt;
+      if (this.positions[i * 3 + 1] < 0.05) {
+        this.positions[i * 3 + 1] = 0.05;
+        this.vel[i * 3 + 1] = 0;
       }
-      p.vy -= 14 * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.z += p.vz * dt;
-      if (p.y < 0.05) { p.y = 0.05; p.vy = 0; }
-      positions[i * 3] = p.x;
-      positions[i * 3 + 1] = p.y;
-      positions[i * 3 + 2] = p.z;
-      const f = p.life / p.max;
-      colors[i * 3] = p.r * f;
-      colors[i * 3 + 1] = p.g * f;
-      colors[i * 3 + 2] = p.b * f;
     }
-    if (any) {
-      geo.attributes.position.needsUpdate = true;
-      geo.attributes.color.needsUpdate = true;
+    this.points.geometry.attributes.position.needsUpdate = true;
+    this.points.geometry.attributes.color.needsUpdate = true;
+    if (this.flashTime > 0) {
+      this.flashTime -= dt;
+      this.flash.material.opacity = Math.max(0, this.flashTime / 0.07);
+      this.flash.lookAt(this.renderer.camera.position);
+      if (this.flashTime <= 0) this.flash.visible = false;
     }
   }
-
-  const flashLight = new THREE.PointLight(0xffe9a8, 0, 14, 1.8);
-  scene.add(flashLight);
-  let flashT = 0;
-  function muzzleFlash(pos) {
-    flashLight.position.set(pos.x, pos.y + 1.4, pos.z);
-    flashLight.intensity = 6;
-    flashT = 0.07;
-    spawn(pos.x, pos.y + 1.3, pos.z, 0xffe9a8, 8, 3, 1, 0.3);
-  }
-  function impact(pos) { spawn(pos.x, pos.y + 0.5, pos.z, 0xffd54f, 14, 7, 5, 0.6); }
-  function smoke(pos) { spawn(pos.x, pos.y + 0.3, pos.z, 0x9aa4ae, 3, 1.2, 1.6, 0.9); }
-  function sparkle(pos) { spawn(pos.x, pos.y + 0.6, pos.z, 0x39d353, 16, 3, 4, 0.9); }
-
-  function updateFlash(dt) {
-    if (flashT > 0) {
-      flashT -= dt;
-      if (flashT <= 0) flashLight.intensity = 0;
-    }
-  }
-
-  return { update, muzzleFlash, impact, smoke, sparkle, updateFlash };
 }

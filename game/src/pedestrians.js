@@ -1,111 +1,150 @@
-// Meridian Bay — pedestrians on the sidewalks. Varied height, build, skin,
-// hats and bags; they stroll between waypoints and flee from gunfire or
-// from a car that comes too close.
+// Meridian Bay — pedestrians on the sidewalks: they stroll between
+// corners, chat in place, and run away from gunshots, speeding cars and
+// police chases. Bright shirts so the streets read as alive.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 
-const SHIRTS = [0xff6d5a, 0x4fc3f7, 0xffd54f, 0x81c784, 0xba68c8, 0xf2ede2, 0xff8a65, 0x64b5f6];
-const SKINS = [0xd9a066, 0x8a5a34, 0xf2c89b, 0x6b4423, 0xe8b98a];
-const PANTS = [0x2e4a6b, 0x3a3a3a, 0x6b4a2e, 0x4a5a3a, 0x5a2e4a];
+const SHIRTS = [0xff5f8f, 0x2fb7ff, 0xffc61a, 0x7ac74c, 0xb46bff, 0xff7a3c, 0xf2f2f2, 0x2c3440];
+const PANTS = [0x2c3440, 0x4a5a6e, 0x6b4a2f, 0x3a3a3a];
 
-function buildPed(rng) {
-  const g = new THREE.Group();
-  const h = rng.range(1.55, 1.95);
-  const s = h / 1.8;
-  const skin = new THREE.MeshLambertMaterial({ color: rng.pick(SKINS) });
-  const shirt = new THREE.MeshLambertMaterial({ color: rng.pick(SHIRTS) });
-  const pants = new THREE.MeshLambertMaterial({ color: rng.pick(PANTS) });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5 * s, 0.6 * s, 0.28 * s), shirt);
-  torso.position.y = 1.05 * s;
-  torso.castShadow = true;
-  g.add(torso);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.34 * s, 0.28 * s), skin);
-  head.position.y = 1.58 * s;
-  g.add(head);
-  if (rng.chance(0.3)) {
-    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.24 * s, 0.26 * s, 0.1 * s, 10), new THREE.MeshLambertMaterial({ color: rng.pick([0xffd54f, 0x2e6f5e, 0xd43a2e]) }));
-    hat.position.y = 1.78 * s;
-    g.add(hat);
+export class Pedestrian {
+  constructor(scene, rng, x, z) {
+    this.rng = rng;
+    this.pos = new THREE.Vector3(x, 0, z);
+    this.heading = rng.angle();
+    this.speed = rng.range(1.2, 2.2);
+    this.state = 'walk'; // walk | idle | flee
+    this.stateTime = rng.range(0, 6);
+    this.target = this.pickTarget();
+    this.health = CONFIG.combat.pedHealth;
+    this.alive = true;
+    this.phase = rng.range(0, Math.PI * 2);
+    this.mesh = this.buildMesh(rng);
+    scene.add(this.mesh);
+    this.syncMesh();
   }
-  const legs = [];
-  for (const sx of [-0.13, 0.13]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.72 * s, 0.22 * s), pants);
-    leg.position.set(sx * s, 0.36 * s, 0);
-    g.add(leg);
-    legs.push(leg);
+
+  buildMesh(rng) {
+    const g = new THREE.Group();
+    const shirt = rng.pick(SHIRTS);
+    const pants = rng.pick(PANTS);
+    const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.45), mat(shirt));
+    torso.position.y = 1.3;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), mat(0xe8b98a));
+    head.position.y = 2.0;
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.5), mat(rng.pick([0x1c1c1c, 0x6b4a2f, 0xd8d8d8])));
+    hair.position.y = 2.28;
+    this.legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, 0.36), mat(pants));
+    this.legL.position.set(-0.2, 0.42, 0);
+    this.legR = this.legL.clone();
+    this.legR.position.x = 0.2;
+    this.armL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.3), mat(shirt));
+    this.armL.position.set(-0.52, 1.3, 0);
+    this.armR = this.armL.clone();
+    this.armR.position.x = 0.52;
+    g.add(torso, head, hair, this.legL, this.legR, this.armL, this.armR);
+    return g;
   }
-  if (rng.chance(0.35)) {
-    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.08), new THREE.MeshLambertMaterial({ color: 0x8a5a34 }));
-    bag.position.set(0.3 * s, 1.0 * s, -0.18 * s);
-    g.add(bag);
+
+  pickTarget() {
+    // a sidewalk corner near the current spot
+    const cx = Math.max(-196, Math.min(196, this.pos.x + this.rng.range(-70, 70)));
+    const cz = Math.max(-196, Math.min(196, this.pos.z + this.rng.range(-70, 70)));
+    return new THREE.Vector3(cx, 0, cz);
   }
-  return { group: g, legs, height: h };
+
+  fleeFrom(x, z) {
+    this.state = 'flee';
+    this.stateTime = this.rng.range(3, 6);
+    const dx = this.pos.x - x;
+    const dz = this.pos.z - z;
+    const d = Math.hypot(dx, dz) || 1;
+    this.target.set(this.pos.x + (dx / d) * 60, 0, this.pos.z + (dz / d) * 60);
+    this.target.x = Math.max(-196, Math.min(196, this.target.x));
+    this.target.z = Math.max(-196, Math.min(196, this.target.z));
+  }
+
+  update(dt, threats) {
+    if (!this.alive) return;
+    this.stateTime -= dt;
+    // a nearby threat flips a walker into a runner
+    for (const t of threats) {
+      const d = Math.hypot(this.pos.x - t.x, this.pos.z - t.z);
+      if (d < t.radius && this.state !== 'flee') this.fleeFrom(t.x, t.z);
+    }
+    if (this.state === 'flee' && this.stateTime <= 0) {
+      this.state = 'walk';
+      this.target = this.pickTarget();
+    }
+    if (this.state === 'idle') {
+      if (this.stateTime <= 0) {
+        this.state = 'walk';
+        this.target = this.pickTarget();
+      }
+      this.syncMesh();
+      return;
+    }
+    const dx = this.target.x - this.pos.x;
+    const dz = this.target.z - this.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1.5) {
+      if (this.state === 'walk' && this.rng.chance(0.3)) {
+        this.state = 'idle';
+        this.stateTime = this.rng.range(2, 7);
+      } else {
+        this.target = this.pickTarget();
+      }
+      this.syncMesh();
+      return;
+    }
+    const want = Math.atan2(dx, dz);
+    let dh = want - this.heading;
+    while (dh > Math.PI) dh -= Math.PI * 2;
+    while (dh < -Math.PI) dh += Math.PI * 2;
+    this.heading += dh * Math.min(1, dt * 6);
+    const speed = this.state === 'flee' ? 6.5 : this.speed;
+    this.pos.x += Math.sin(this.heading) * speed * dt;
+    this.pos.z += Math.cos(this.heading) * speed * dt;
+    this.pos.x = Math.max(-200, Math.min(200, this.pos.x));
+    this.pos.z = Math.max(-200, Math.min(200, this.pos.z));
+    this.phase += dt * speed * 2.2;
+    this.syncMesh();
+  }
+
+  syncMesh() {
+    this.mesh.position.copy(this.pos);
+    this.mesh.rotation.y = this.heading;
+    const swing = Math.sin(this.phase) * 0.5;
+    this.legL.rotation.x = swing;
+    this.legR.rotation.x = -swing;
+    this.armL.rotation.x = -swing * 0.7;
+    this.armR.rotation.x = swing * 0.7;
+  }
+
+  die() {
+    this.alive = false;
+    this.mesh.rotation.x = -Math.PI / 2;
+    this.mesh.position.y = 0.35;
+  }
 }
 
-export function createPedestrians(scene, city, rng, count = 26) {
-  const peds = [];
-  for (let i = 0; i < count; i++) {
-    const { group, legs } = buildPed(rng);
-    const p = city.sidewalkPoint();
-    group.position.set(p.x, 0, p.z);
-    scene.add(group);
-    const target = city.sidewalkPoint();
-    peds.push({
-      group, legs,
-      pos: group.position,
-      target: new THREE.Vector3(target.x, 0, target.z),
-      speed: rng.range(1.2, 2.4),
-      phase: rng.range(0, Math.PI * 2),
-      flee: false,
-      fleeFrom: null,
-    });
-  }
-
-  function update(dt, dangerPos, dangerRadius = 0) {
-    for (const p of peds) {
-      // flee if danger is close
-      if (dangerPos) {
-        const d = Math.hypot(p.pos.x - dangerPos.x, p.pos.z - dangerPos.z);
-        if (d < dangerRadius) {
-          p.flee = true;
-          p.fleeFrom = dangerPos;
-        }
-      }
-      let tx;
-      let tz;
-      let speed = p.speed;
-      if (p.flee && p.fleeFrom) {
-        const dx = p.pos.x - p.fleeFrom.x;
-        const dz = p.pos.z - p.fleeFrom.z;
-        const len = Math.hypot(dx, dz) || 1;
-        tx = p.pos.x + (dx / len) * 20;
-        tz = p.pos.z + (dz / len) * 20;
-        speed = 5.5;
-        if (Math.hypot(tx - p.pos.x, tz - p.pos.z) < 1 || Math.hypot(p.pos.x - p.fleeFrom.x, p.pos.z - p.fleeFrom.z) > 24) {
-          p.flee = false;
-        }
-      } else {
-        tx = p.target.x;
-        tz = p.target.z;
-        const d = Math.hypot(tx - p.pos.x, tz - p.pos.z);
-        if (d < 1.5) {
-          const np = city.sidewalkPoint();
-          p.target.set(np.x, 0, np.z);
-        }
-      }
-      const dx = tx - p.pos.x;
-      const dz = tz - p.pos.z;
-      const len = Math.hypot(dx, dz) || 1;
-      p.pos.x += (dx / len) * speed * dt;
-      p.pos.z += (dz / len) * speed * dt;
-      p.pos.x = Math.max(-CONFIG.cityHalf - 6, Math.min(CONFIG.beachX + 52, p.pos.x));
-      p.pos.z = Math.max(-CONFIG.cityHalf - 6, Math.min(CONFIG.cityHalf + 6, p.pos.z));
-      p.group.rotation.y = Math.atan2(dx, dz);
-      p.phase += dt * speed * 3;
-      const swing = Math.sin(p.phase) * 0.5;
-      p.legs[0].rotation.x = swing;
-      p.legs[1].rotation.x = -swing;
+export class Pedestrians {
+  constructor(scene, rng) {
+    this.list = [];
+    for (let i = 0; i < 26; i++) {
+      const x = rng.range(-190, 190);
+      const z = rng.range(-190, 190);
+      this.list.push(new Pedestrian(scene, rng, x, z));
     }
   }
-  return { peds, update };
+
+  update(dt, threats) {
+    for (const p of this.list) p.update(dt, threats);
+  }
+
+  // Everyone alive within radius of a point (for combat + missions).
+  near(x, z, radius) {
+    return this.list.filter((p) => p.alive && Math.hypot(p.pos.x - x, p.pos.z - z) < radius);
+  }
 }

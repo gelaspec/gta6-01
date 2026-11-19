@@ -1,166 +1,267 @@
-// Meridian Bay — the six story missions, taxi fares and the 10 hidden
-// packages. Each mission: brief, objective, waypoint, timer, reward.
+// Meridian Bay — the story: 6 missions in "The Meridian Job", each a short
+// chain of stages (steal / goto / collect / timed / wanted / escape / ram /
+// grab), plus 10 hidden packages and taxi fares on the side. The mission
+// panel, the waypoint beacon and the minimap blip all read this state.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
+import { briefLine } from './dialog.js';
 
-const MISSION_SPOTS = {
-  M1: { x: -110, z: 88, label: 'Dockside Garage' }, // garage
-  M2: { x: 88, z: -66, label: 'Marina Motel' },
-  M3: { x: -22, z: -88, label: 'Calle Verde drops' },
-  M4: { x: 0, z: 0, label: 'Survive the heat' },
-  M5: { x: 178, z: 22, label: 'Pier 40 van' },
-  M6: { x: -44, z: -22, label: 'Meridian Bank' },
-};
+function beacon(color) {
+  const geo = new THREE.CylinderGeometry(2.2, 2.2, 60, 16, 1, true);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.28,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 30;
+  const ringGeo = new THREE.TorusGeometry(2.4, 0.25, 8, 32);
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.3;
+  const group = new THREE.Group();
+  group.add(mesh, ring);
+  return group;
+}
 
-export function createMissions(scene, rng, state) {
-  const marker = new THREE.Group();
-  const beacon = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.6, 1.6, 60, 16, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffe600, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  beacon.position.y = 30;
-  marker.add(beacon);
-  const arrow = new THREE.Mesh(
-    new THREE.ConeGeometry(0.9, 2.2, 4),
-    new THREE.MeshBasicMaterial({ color: 0xffe600 }),
-  );
-  arrow.rotation.x = Math.PI;
-  arrow.position.y = 7;
-  marker.add(arrow);
-  marker.visible = false;
-  scene.add(marker);
-
-  // hidden packages: glowing green boxes on rooftops/sidewalks
-  const packages = [];
-  const pkgMat = new THREE.MeshLambertMaterial({ color: 0x39d353, emissive: 0x1d7a2e, emissiveIntensity: 0.6 });
-  for (let i = 0; i < 10; i++) {
-    const p = rng.chance(0.5) ? { x: -110 + (i % 5) * 55, z: -110 + Math.floor(i / 5) * 55 } : { x: 22 + (i % 4) * 40, z: -132 + Math.floor(i / 4) * 66 };
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), pkgMat);
-    m.position.set(p.x, 0.6, p.z);
-    scene.add(m);
-    packages.push({ mesh: m, pos: m.position, taken: false });
+export class Missions {
+  constructor(scene, rng, game) {
+    this.scene = scene;
+    this.rng = rng;
+    this.game = game;
+    this.index = 0; // current mission in CONFIG.missions
+    this.stage = 0;
+    this.done = 0; // missions completed
+    this.timer = 0;
+    this.timeLimit = 0;
+    this.collected = 0; // drops collected in the current collect stage
+    this.packagesFound = 0;
+    this.packages = [];
+    this.beacon = null;
+    this.beaconTarget = null;
+    this.taxi = null; // {ped, target, fare, active}
+    this.finished = false;
+    this.objective = 'Press Enter to start';
+    this.spawnPackages();
+    this.setMission(0);
   }
 
-  let current = 0; // mission index 0..5
-  let stage = 0; // stages inside a mission (e.g. M6: 0 approach, 1 hold, 2 escape)
-  let timer = 0;
-  let dropsCollected = 0;
-  let started = false;
+  get mission() {
+    return CONFIG.missions[this.index];
+  }
 
-  function def() { return CONFIG.missions[current]; }
-  function spot() { return MISSION_SPOTS[def().id]; }
+  get stageDef() {
+    const m = this.mission;
+    if (!m) return null;
+    return m.stages[Math.min(this.stage, m.stages.length - 1)];
+  }
 
-  // Force a mission into a given stage (used by the deterministic shot stager).
-  function stageForShot(stageNum, timerSeconds) {
-    stage = stageNum;
-    timer = timerSeconds;
-    if (def().id === 'M6' && stageNum === 2) {
-      marker.position.set(198, 0, 22); // escape to the pier boat
-    } else {
-      const s = spot();
-      marker.position.set(s.x, 0, s.z);
+  spawnPackages() {
+    const geo = new THREE.OctahedronGeometry(0.9);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffd23c });
+    for (let i = 0; i < CONFIG.side.packages; i++) {
+      const x = this.rng.range(-185, 185);
+      const z = this.rng.range(-185, 185);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, 1.2, z);
+      this.scene.add(mesh);
+      this.packages.push({ mesh, x, z, found: false });
     }
   }
 
-  function startMission(i) {
-    current = i;
-    stage = 0;
-    timer = def().time;
-    dropsCollected = 0;
-    started = true;
-    marker.visible = true;
-    const s = spot();
-    marker.position.set(s.x, 0, s.z);
-    return def();
-  }
-
-  function completeMission() {
-    const d = def();
-    state.money += d.reward;
-    state.rep += 240;
-    state.missionsDone += 1;
-    started = false;
-    marker.visible = false;
-    if (current < CONFIG.missions.length - 1) {
-      return { reward: d.reward, next: CONFIG.missions[current + 1] };
+  setMission(i) {
+    this.index = i;
+    this.stage = 0;
+    this.collected = 0;
+    this.timer = 0;
+    const m = this.mission;
+    if (!m) {
+      this.finished = true;
+      this.objective = 'Story complete — Meridian Bay is yours';
+      this.clearBeacon();
+      return;
     }
-    return { reward: d.reward, next: null, storyDone: true };
+    this.timeLimit = m.timeLimit || 0;
+    this.game.dialog.say(briefLine(m), 7);
+    this.game.hud.toast(`${m.chapter} — ${m.name}`);
+    this.applyStage();
   }
 
-  // returns an event string when something happens, else null
-  function update(dt, playerPos, inCar, wanted) {
-    // package pickup
-    for (const p of packages) {
-      if (p.taken) continue;
-      if (Math.hypot(p.pos.x - playerPos.x, p.pos.z - playerPos.z) < 2.2) {
-        p.taken = true;
-        p.mesh.visible = false;
-        state.money += CONFIG.packageValue;
-        state.packages += 1;
-        return 'PACKAGE';
+  applyStage() {
+    const s = this.stageDef;
+    if (!s) return;
+    this.objective = s.text;
+    if (s.type === 'timed') this.timer = this.timeLimit;
+    if (s.target) this.setBeacon(s.target[0], s.target[1]);
+    else if (s.targets) this.setBeacon(s.targets[this.collected][0], s.targets[this.collected][1]);
+    else this.clearBeacon();
+  }
+
+  setBeacon(x, z) {
+    this.clearBeacon();
+    this.beacon = beacon(0xffd23c);
+    this.beacon.position.set(x, 0, z);
+    this.scene.add(this.beacon);
+    this.beaconTarget = { x, z };
+  }
+
+  clearBeacon() {
+    if (this.beacon) {
+      this.scene.remove(this.beacon);
+      this.beacon = null;
+      this.beaconTarget = null;
+    }
+  }
+
+  completeStage() {
+    const m = this.mission;
+    this.stage += 1;
+    this.game.audio.pickup();
+    if (this.stage >= m.stages.length) this.completeMission();
+    else this.applyStage();
+  }
+
+  completeMission() {
+    const m = this.mission;
+    this.game.money += m.reward;
+    this.done += 1;
+    this.game.rep = Math.min(100, this.game.rep + CONFIG.side.repPerMission);
+    this.game.audio.missionDone();
+    this.game.hud.toast(`MISSION PASSED — ${m.name}  +$${m.reward.toLocaleString('en-US')}`);
+    const rating = this.game.player.health > 70 ? 3 : this.game.player.health > 40 ? 2 : 1;
+    const mins = Math.floor(this.game.time / 60);
+    const secs = Math.floor(this.game.time % 60);
+    this.game.hud.showPassed({
+      chapter: m.chapter,
+      name: m.name,
+      reward: m.reward,
+      rating,
+      stats: `TIME ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}  •  DAMAGE ${Math.round(100 - this.game.player.health)}%  •  PACKAGES ${this.packagesFound}/10  •  TOP SPEED ${Math.round(166)} KM/H`,
+    });
+    this.game.dialog.say({
+      name: m.giver, role: m.role,
+      text: `Clean work, Cassian. $${m.reward.toLocaleString('en-US')} is yours.`,
+    }, 5);
+    this.game.saveGame();
+    if (this.done >= CONFIG.missions.length) {
+      this.game.storyComplete();
+      return;
+    }
+    this.setMission(this.index + 1);
+  }
+
+  // Called when the player picks up a hidden package.
+  checkPackages() {
+    const p = this.game.player.pos;
+    for (const pkg of this.packages) {
+      if (pkg.found) continue;
+      if (Math.hypot(pkg.x - p.x, pkg.z - p.z) < 2.2) {
+        pkg.found = true;
+        pkg.mesh.visible = false;
+        this.packagesFound += 1;
+        this.game.money += CONFIG.side.packageReward;
+        this.game.audio.pickup();
+        this.game.hud.toast(`HIDDEN PACKAGE ${this.packagesFound}/10  +$${CONFIG.side.packageReward}`);
+        this.game.dialog.say({ name: 'Inez Kade', role: 'FIXER', text: 'One package down. Keep them coming — each one pays.' }, 4);
       }
     }
-    if (!started) return null;
-    const s = spot();
-    const d = Math.hypot(s.x - playerPos.x, s.z - playerPos.z);
-    const m = def();
-    // per-mission logic
-    if (m.id === 'M1') {
-      if (inCar && d < 12) return 'COMPLETE';
-    } else if (m.id === 'M2') {
-      timer -= dt;
-      if (timer <= 0) return 'FAILED';
-      if (d < 10) return 'COMPLETE';
-    } else if (m.id === 'M3') {
-      // drops are the three staged points around Calle Verde
-      if (d < 10 && stage < 3) {
-        stage += 1;
-        dropsCollected += 1;
-        if (stage >= 3) return 'COMPLETE';
-        const next = [{ x: -66, z: -44 }, { x: 22, z: -88 }, { x: -22, z: -132 }][stage];
-        marker.position.set(next.x, 0, next.z);
-        return 'DROP';
+  }
+
+  startTaxi(ped) {
+    if (this.taxi) return;
+    const tx = this.rng.range(-170, 170);
+    const tz = this.rng.range(-170, 170);
+    this.taxi = { ped, target: { x: tx, z: tz }, fare: CONFIG.side.taxiFare, active: true };
+    this.setBeacon(tx, tz);
+    this.game.dialog.say({ name: 'Passenger', role: 'FARE', text: 'Marina, please — and step on it, I am late for a boat.' }, 5);
+    this.objective = 'Taxi fare: take the passenger to the marker';
+  }
+
+  update(dt) {
+    const g = this.game;
+    const p = g.player;
+    if (this.finished) return;
+    // beacon pulse
+    if (this.beacon) {
+      this.beacon.rotation.y += dt * 1.5;
+      const s = 1 + Math.sin(g.time * 3) * 0.08;
+      this.beacon.scale.set(s, 1, s);
+    }
+    // package glow spin
+    for (const pkg of this.packages) {
+      if (!pkg.found) {
+        pkg.mesh.rotation.y += dt * 2;
+        pkg.mesh.position.y = 1.2 + Math.sin(g.time * 2 + pkg.x) * 0.25;
       }
-    } else if (m.id === 'M4') {
-      timer -= dt;
-      if (timer <= 0) return 'COMPLETE';
-      if (wanted < 3 && timer < def().time - 2) return 'FAILED'; // 2s grace at start
-    } else if (m.id === 'M5') {
-      if (inCar && d < 14) return 'COMPLETE';
-    } else if (m.id === 'M6') {
-      if (stage === 0) {
-        if (d < 12) { stage = 1; timer = m.time; return 'HOLD'; }
-      } else if (stage === 1) {
-        timer -= dt;
-        if (d > 16) return 'FAILED';
-        if (timer <= 0) {
-          stage = 2;
-          marker.position.set(198, 0, 22); // escape to the pier boat
-          return 'ESCAPE';
+    }
+    if (this.taxi && this.taxi.active) {
+      const t = this.taxi.target;
+      if (Math.hypot(t.x - p.pos.x, t.z - p.pos.z) < 5) {
+        g.money += this.taxi.fare;
+        g.audio.pickup();
+        g.hud.toast(`FARE COMPLETE  +$${this.taxi.fare}`);
+        this.taxi = null;
+        this.applyStage();
+      }
+      return;
+    }
+    const s = this.stageDef;
+    if (!s) return;
+    const px = p.pos.x;
+    const pz = p.pos.z;
+    if (s.type === 'timed') {
+      this.timer -= dt;
+      if (this.timer <= 0) {
+        g.hud.toast('TOO SLOW — the courier run failed. Try again.');
+        this.setMission(this.index); // restart the mission
+        return;
+      }
+    }
+    switch (s.type) {
+      case 'steal':
+        if (!p.onFoot) this.completeStage();
+        break;
+      case 'goto':
+      case 'grab': {
+        if (s.target && Math.hypot(s.target[0] - px, s.target[1] - pz) < 6) {
+          if (s.type === 'grab' && !g.input.pressed('KeyE')) break;
+          this.completeStage();
         }
-      } else if (stage === 2) {
-        const pierD = Math.hypot(198 - playerPos.x, 22 - playerPos.z);
-        if (pierD < 14) return 'COMPLETE';
+        break;
       }
+      case 'collect': {
+        const t = s.targets[this.collected];
+        if (t && Math.hypot(t[0] - px, t[1] - pz) < 5) {
+          this.collected += 1;
+          g.money += 150;
+          g.audio.pickup();
+          this.objective = `Collect the drops in Calle Verde (${this.collected}/3)`;
+          if (this.collected >= s.targets.length) this.completeStage();
+          else this.setBeacon(s.targets[this.collected][0], s.targets[this.collected][1]);
+        }
+        break;
+      }
+      case 'wanted':
+        if (g.police.wanted >= s.wanted) this.completeStage();
+        break;
+      case 'escape':
+        if (g.police.wanted === 0 && this.stage > 0) {
+          // only completes once the heat was actually raised in this mission
+          if (g.police.everWanted) this.completeStage();
+        }
+        break;
+      case 'ram': {
+        const van = g.heistVan;
+        if (van && Math.hypot(van.pos.x - px, van.pos.z - pz) < 6) {
+          g.money += 800;
+          g.effects.burst(van.pos, 0xffd23c, 24);
+          g.audio.gunshot();
+          g.hud.toast('VAN CRACKED  +$800');
+          this.completeStage();
+        }
+        break;
+      }
+      default:
+        break;
     }
-    return null;
   }
-
-  function stageText() {
-    const m = def();
-    if (m.id === 'M3') return `${dropsCollected}/3 drops`;
-    if (m.id === 'M6') return stage === 0 ? 'Reach the bank' : stage === 1 ? `Hold — ${Math.ceil(timer)}s` : 'Escape to Pier 40';
-    if (m.time > 0 && started) return `${Math.ceil(timer)}s left`;
-    return started ? 'In progress' : 'Not started';
-  }
-
-  return {
-    marker, packages,
-    get current() { return current; },
-    get stage() { return stage; },
-    get timer() { return timer; },
-    get started() { return started; },
-    get dropsCollected() { return dropsCollected; },
-    def, spot, startMission, stageForShot, completeMission, update, stageText,
-  };
 }

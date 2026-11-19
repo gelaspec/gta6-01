@@ -1,37 +1,48 @@
-// Meridian Bay — localStorage save/load. One key, one JSON blob, versioned.
-const KEY = 'meridian-bay-save-v6';
+// Meridian Bay — save: one localStorage slot for money, mission progress,
+// packages and reputation. Everything is guarded: a missing or blocked
+// store simply means a fresh run.
 
-export function saveGame(state) {
-  try {
-    const data = {
-      version: 6,
-      money: state.money,
-      rep: state.rep,
-      day: state.day,
-      missionsDone: state.missionsDone,
-      packages: state.packages,
-      missionIndex: state.missionIndex,
-      savedAt: new Date().toISOString(),
-    };
-    localStorage.setItem(KEY, JSON.stringify(data));
-    return true;
-  } catch (e) {
-    return false;
+const KEY = 'meridian-bay-save-v7';
+
+export class Save {
+  static load() {
+    try {
+      const raw = window.localStorage.getItem(KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (typeof data !== 'object' || data === null) return null;
+      return {
+        money: Number(data.money) || 0,
+        mission: Number(data.mission) || 0,
+        packages: Number(data.packages) || 0,
+        rep: Number(data.rep) || 0,
+        best: Number(data.best) || 0,
+      };
+    } catch {
+      return null;
+    }
   }
-}
 
-export function loadGame() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || data.version !== 6) return null;
-    return data;
-  } catch (e) {
-    return null;
+  static store(state) {
+    try {
+      const data = {
+        money: Math.round(state.money),
+        mission: state.mission,
+        packages: state.packages,
+        rep: Math.round(state.rep),
+        best: Math.round(state.best),
+        savedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(KEY, JSON.stringify(data));
+      return true;
+    } catch {
+      return false;
+    }
   }
-}
 
-export function clearSave() {
-  try { localStorage.removeItem(KEY); } catch (e) { /* storage unavailable */ }
+  static clear() {
+    try {
+      window.localStorage.removeItem(KEY);
+    } catch { /* no store, nothing to clear */ }
+  }
 }

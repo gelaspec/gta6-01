@@ -1,68 +1,98 @@
-# MERIDIAN BAY
+# Meridian Bay — Open-World Crime in a Sun-Soaked Port City
 
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/gelaspec/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/gelaspec/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+**[Play the bounty on make.fun](https://make.fun/bounty/gta6-01)** ·
+**[Repository](https://github.com/gelaspec/gta6-01)**
 
-Bounty: [gta6-01 on make.fun](https://make.fun/bounty/gta6-01)
-
-A Grand Theft Auto VI style open-world crime game, built for the make.fun
-gta6-01 bounty. Three.js, static files only — no build step, no network.
+You are Cassian Rowe, getaway driver, back in Meridian Bay with nothing but a
+bus ticket. Fixer Inez Kade has six jobs for you — ending with the Meridian
+Bank vault at golden hour. Steal cars, outrun the MBPD, collect the hidden
+packages, and make the Bay yours.
 
 ## The game
 
-Cassian Rowe is new in Meridian Bay: broke, carless, and already on the
-MBPD's list. His fixer **Inez Kade** has six jobs for him, from stealing his
-first wheels to **The Meridian Job** — a bank hit with the whole city in
-pursuit. The city is a 7x7 coastal grid with a beach, a pier, a lighthouse,
-traffic, pedestrians, taxi fares, hidden packages, combat, a wanted system
-with cruisers, foot cops and the AIR ONE helicopter, and a live minimap.
-
-- **Open world** — drive or walk anywhere: 7x7 blocks, beach, pier, plaza
-- **Stealable cars** — 7 classes, including the hot-pink Comet GT
-- **Wanted 0–5 stars** — MBPD cruisers chase and ram, foot cops at low heat,
-  AIR ONE helicopter with a spotlight at 3+ stars
-- **6 story missions** — First Wheels, Courier Run, The Pickup, Heat,
-  Pier Heist, The Meridian Job
-- **Combat** — punch and pistol, Harbor Kings gunmen, health + REP
-- **HUD** — mission panel, wanted stars, money, day/clock, district + street,
-  police panel with named units, circular live minimap, weapon slots
-- **Save** — progress saves locally in the browser
+- **A complete open world:** a 7×7 coastal city with five districts (Old Port,
+  Marina, Downtown, Calle Verde, The Palms), a beach, the sea and a pier.
+- **On foot and by car:** walk, run, jump, steal any car, drive with arcade
+  handling, handbrake turns, traffic AI and fleeing pedestrians.
+- **Wanted 0–5 stars:** the MBPD answers with patrol cars, foot cops and —
+  from 3 stars — a helicopter with a spotlight. Lose the tail to cool off.
+- **Six story missions:** First Wheels, Courier Run, The Pickup, Heat,
+  Pier Heist and The Meridian Job, with a fixer who talks you through them.
+- **Side work:** 10 hidden packages and taxi fares for extra cash.
+- **Combat:** fists and a pistol, with a wanted level that answers back.
+- **HUD:** money, day and time, wanted stars, health, speed, car condition,
+  radio, weapon slots, REP bar, mission panel, police response panel with
+  named units and distances, and a live circular minimap.
+- **Sound:** synthesized engine, siren, gunshots and a synthwave loop —
+  no audio files, no network.
+- **Save:** progress, money and packages persist in localStorage.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| WASD / arrows | Move / drive |
-| Mouse drag | Orbit camera |
-| E | Steal car / exit car |
-| Click | Shoot pistol |
+| WASD / arrows | Move on foot, drive |
+| E | Enter / leave a car |
 | F | Punch |
-| 1 / 2 | Fists / pistol |
-| Space | Jump (on foot) / handbrake (driving) |
+| Mouse click | Shoot |
+| R | Reload |
+| Space | Jump on foot, handbrake in a car |
 | Shift | Run |
-| V | Change radio station |
+| C | Camera near / far |
+| T | Pick up a taxi fare (while driving) |
+| Q | Next radio station |
 | M | Mute |
-| P | Pause (saves) |
+| Esc | Pause |
 
-## Run it
+## Play it
 
-```bash
-node serve.ts            # serves game/ at http://127.0.0.1:8080/
-node render-shots.mjs    # takes the 4 dossier screenshots
+```sh
+node serve.ts
+# open http://localhost:8080
 ```
-
-Deterministic screenshot scenes (seeded): `?shot=chase|foot|dialog|mission&seed=1`.
 
 ## Screenshots
 
-![M6 chase cover](screenshots/1-chase.jpg)
-![M1 on foot](screenshots/2-onfoot.jpg)
-![M5 pier brief](screenshots/3-dialog.jpg)
-![M4 passed](screenshots/4-progress.jpg)
+Four renders of the game itself, taken with `node render-shots.mjs`:
 
-## Original IP
+1. `1-chase.jpg` — M6, The Meridian Job: a four-star chase at golden hour.
+2. `2-onfoot.jpg` — M1, First Wheels: on foot on the pier, day one.
+3. `3-dialog.jpg` — M3, The Pickup: the fixer brief at dusk in Calle Verde.
+4. `4-progress.jpg` — M4, Heat: mission passed at neon night.
 
-Meridian Bay, Cassian Rowe, Inez Kade, the MBPD and the Harbor Kings are
-original characters and places created for this entry. Not affiliated with
-Rockstar Games.
+## Structure
+
+Every file has one clear job:
+
+- `game/index.html` — canvas, HUD and import map
+- `game/src/config.js` — tuning, palette, districts, missions, cars, radio
+- `game/src/random.js` — seedable RNG
+- `game/src/city.js` — the 7×7 city, beach, pier, palms, props
+- `game/src/render.js` — renderer, camera rig, time of day
+- `game/src/input.js` — keyboard and mouse
+- `game/src/player.js` — Cassian Rowe on foot
+- `game/src/vehicles.js` — cars, arcade physics, traffic AI
+- `game/src/pedestrians.js` — walkers who flee trouble
+- `game/src/police.js` — wanted level, patrols, helicopter
+- `game/src/combat.js` — fists and pistol
+- `game/src/effects.js` — particles, muzzle flash, screen shake
+- `game/src/audio.js` — synthesized sound and music
+- `game/src/dialog.js` — fixer and dispatch lines
+- `game/src/missions.js` — the six missions, packages, taxi fares
+- `game/src/hud.js` — HUD, minimap, screens
+- `game/src/save.js` — localStorage save
+- `game/src/shots.js` — deterministic screenshot states
+- `game/src/main.js` — boot and the main loop
+- `main.ts` — hands the game in (copies game/ + screenshots/, writes dossier.json)
+- `serve.ts` — local static server
+- `render-shots.mjs` — takes the four screenshots in headless Chrome
+
+## Originality
+
+Meridian Bay, Cassian Rowe, Inez Kade, the MBPD and every line of this game
+are original, built for this bounty. No Rockstar Games material is used.
+Three.js is vendored under `game/vendor/` and is never shown as our source.
+
+## License
+
+MIT — see `LICENSE`.

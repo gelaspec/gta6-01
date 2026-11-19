@@ -1,38 +1,36 @@
-// Meridian Bay — entrypoint (v6, fresh authoring).
-// Copies game/ and screenshots/ into the output dir and writes dossier.json.
-// The grader runs this with the repo read-only and /output as a docker volume
-// mount — so this file NEVER removes the output dir (rmSync on a mount point
-// throws EBUSY and killed the v3 entry). It only creates missing directories
-// and copies files in. buildDossier returns the dossier JSON as a string;
-// dossier.json must equal exactly what it writes.
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+// Meridian Bay — the entrypoint: hands the game in. It copies game/ and
+// screenshots/ from this repository into the output directory and writes
+// /output/dossier.json with buildDossier from vendor/makefun-game.ts.
+//
+// The output directory is a mount point on the grader, so this program
+// never removes it: it only creates it (mkdirSync, recursive) and copies
+// into it. Removing a mount point throws EBUSY and fails the run.
+//
+// Run it anywhere: paths come from import.meta.url, never from the cwd.
+//   MAKEFUN_OUTPUT_DIR=out node main.ts
+// Outside the grader MAKEFUN_OUTPUT_DIR stands in for /output.
+import { buildDossier } from './vendor/makefun-game.ts';
+import { createHash } from 'node:crypto';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDossier } from './vendor/makefun-game.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR || join(here, 'dist');
+const root = dirname(fileURLToPath(import.meta.url));
+const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// Create the output dir if it is missing. Never delete it: on the grader it
-// is a mounted volume, and removing a mount point throws EBUSY.
-mkdirSync(outDir, { recursive: true });
+mkdirSync(out, { recursive: true });
+cpSync(join(root, 'game'), join(out, 'game'), { recursive: true });
+cpSync(join(root, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-const gameDir = join(here, 'game');
-const shotDir = join(here, 'screenshots');
-
-if (!existsSync(gameDir)) throw new Error('game/ missing next to main.ts');
-if (!existsSync(shotDir)) throw new Error('screenshots/ missing next to main.ts');
-
-cpSync(gameDir, join(outDir, 'game'), { recursive: true });
-cpSync(shotDir, join(outDir, 'screenshots'), { recursive: true });
-
-const dossier = buildDossier(outDir, {
+const dossier = buildDossier(out, {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   game_max_files: 993,
   game_max_bytes: 50331648,
   game_path_max_bytes: 1000,
 });
+writeFileSync(join(out, 'dossier.json'), dossier);
 
-writeFileSync(join(outDir, 'dossier.json'), dossier);
-console.log(`dossier written: ${dossier.length} bytes -> ${join(outDir, 'dossier.json')}`);
+const sha = createHash('sha256').update(dossier).digest('hex');
+console.log(`dossier.json: ${dossier.length} bytes, sha256 ${sha}`);
+console.log(`output: ${out}`);

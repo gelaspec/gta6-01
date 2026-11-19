@@ -1,161 +1,139 @@
-// Meridian Bay — combat: punch, pistol (raycast, 12 rounds, reload), and the
-// Harbor Kings gunmen who guard the M5 van and the M6 bank.
+// Meridian Bay — combat: fists (F) and the pistol (mouse click). Shots
+// raycast from the camera into peds, cops and cars; a hit flashes, sparks,
+// and raises the wanted level when the MBPD sees it happen.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 
-function buildGunman(rng) {
-  const g = new THREE.Group();
-  const jacket = new THREE.MeshLambertMaterial({ color: 0x3a1c1c }); // dark red Kings
-  const skin = new THREE.MeshLambertMaterial({ color: rng ? 0xd9a066 : 0xd9a066 });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), jacket);
-  torso.position.y = 1.18;
-  torso.castShadow = true;
-  g.add(torso);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.4, 0.34), skin);
-  head.position.y = 1.78;
-  g.add(head);
-  const bandana = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.1, 0.36), new THREE.MeshLambertMaterial({ color: 0xd43a2e }));
-  bandana.position.y = 1.92;
-  g.add(bandana);
-  for (const sx of [-0.16, 0.16]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.78, 0.26), new THREE.MeshLambertMaterial({ color: 0x2b2b33 }));
-    leg.position.set(sx, 0.4, 0);
-    g.add(leg);
-  }
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-  gun.position.set(0.4, 1.2, 0.3);
-  g.add(gun);
-  return g;
-}
-
-export function createCombat(scene, rng) {
-  const raycaster = new THREE.Raycaster();
-  const gunmen = [];
-  let ammo = CONFIG.pistolAmmo;
-  let reloading = false;
-  let reloadT = 0;
-  let punchT = 0;
-  let muzzleT = 0;
-
-  const muzzle = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.7, 0.7),
-    new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0, side: THREE.DoubleSide }),
-  );
-  scene.add(muzzle);
-
-  function spawnGunman(x, z, heading = 0) {
-    const mesh = buildGunman(rng);
-    mesh.position.set(x, 0, z);
-    mesh.rotation.y = heading;
-    scene.add(mesh);
-    const g = { mesh, pos: mesh.position, health: 3, shootT: rng.range(0.5, 1.5), alive: true };
-    gunmen.push(g);
-    return g;
+export class Combat {
+  constructor(scene, camera) {
+    this.scene = scene;
+    this.camera = camera;
+    this.raycaster = new THREE.Raycaster();
+    this.ammo = CONFIG.combat.pistolAmmo;
+    this.reserve = CONFIG.combat.pistolReserve;
+    this.punchTimer = 0;
+    this.shootTimer = 0;
+    this.weapon = 'pistol'; // pistol | fists
+    this.slots = [
+      { name: 'PISTOL', ammo: '12/60', locked: false },
+      { name: 'FISTS', ammo: '∞', locked: false },
+      { name: 'SHOTGUN', ammo: 'LOCKED', locked: true },
+      { name: 'SMG', ammo: 'LOCKED', locked: true },
+    ];
   }
 
-  function clearGunmen() {
-    for (const g of gunmen) scene.remove(g.mesh);
-    gunmen.length = 0;
+  reset() {
+    this.ammo = CONFIG.combat.pistolAmmo;
+    this.reserve = CONFIG.combat.pistolReserve;
+    this.weapon = 'pistol';
+    this.punchTimer = 0;
+    this.shootTimer = 0;
   }
 
-  // Punch: short-range arc in front of the player.
-  function punch(playerPos, heading, enemies) {
-    if (punchT > 0) return false;
-    punchT = 0.45;
-    let hit = false;
-    for (const g of gunmen) {
-      if (!g.alive) continue;
-      const dx = g.pos.x - playerPos.x;
-      const dz = g.pos.z - playerPos.z;
+  update(dt, input, game) {
+    this.punchTimer = Math.max(0, this.punchTimer - dt);
+    this.shootTimer = Math.max(0, this.shootTimer - dt);
+    if (input.pressed('Digit1')) this.weapon = 'pistol';
+    if (input.pressed('Digit2')) this.weapon = 'fists';
+    if (input.pressed('KeyF') && this.punchTimer <= 0) this.punch(game);
+    if (input.clicked() && this.weapon === 'pistol' && this.shootTimer <= 0) this.shoot(game);
+    if (input.pressed('KeyR')) this.reload();
+    this.slots[0].ammo = `${this.ammo}/${this.reserve}`;
+  }
+
+  reload() {
+    if (this.ammo >= CONFIG.combat.pistolAmmo || this.reserve <= 0) return;
+    const need = CONFIG.combat.pistolAmmo - this.ammo;
+    const take = Math.min(need, this.reserve);
+    this.ammo += take;
+    this.reserve -= take;
+  }
+
+  punch(game) {
+    this.punchTimer = 0.45;
+    game.audio.punch();
+    const p = game.player;
+    const fx = Math.sin(p.heading);
+    const fz = Math.cos(p.heading);
+    const hit = (pos) => {
+      const dx = pos.x - p.pos.x;
+      const dz = pos.z - p.pos.z;
       const d = Math.hypot(dx, dz);
-      const ang = Math.atan2(dx, dz);
-      let dh = ang - heading;
-      while (dh > Math.PI) dh -= Math.PI * 2;
-      while (dh < -Math.PI) dh += Math.PI * 2;
-      if (d < CONFIG.punchRange && Math.abs(dh) < 0.9) {
-        g.health -= 1;
-        if (g.health <= 0) {
-          g.alive = false;
-          g.mesh.rotation.x = -Math.PI / 2;
-          g.mesh.position.y = 0.3;
-        }
-        hit = true;
+      if (d > CONFIG.combat.punchRange) return false;
+      const dot = (dx * fx + dz * fz) / (d || 1);
+      return dot > Math.cos(CONFIG.combat.punchArc);
+    };
+    let landed = false;
+    for (const ped of game.peds.list) {
+      if (ped.alive && hit(ped.pos)) {
+        ped.health -= CONFIG.combat.punchDamage;
+        game.effects.burst(ped.pos, 0xffe14d, 10);
+        if (ped.health <= 0) ped.die();
+        else ped.fleeFrom(p.pos.x, p.pos.z);
+        landed = true;
       }
     }
-    return hit;
-  }
-
-  // Pistol: raycast from the camera centre; hits gunmen or the world.
-  function shoot(camera, playerPos, heading, onHitWorld) {
-    if (reloading) return { fired: false, reason: 'RELOADING' };
-    if (ammo <= 0) {
-      reloading = true;
-      reloadT = 1.6;
-      return { fired: false, reason: 'RELOAD' };
-    }
-    ammo -= 1;
-    muzzleT = 0.08;
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const targets = gunmen.filter((g) => g.alive).map((g) => g.mesh);
-    const hits = raycaster.intersectObjects(targets, true);
-    let killed = false;
-    if (hits.length > 0) {
-      let obj = hits[0].object;
-      while (obj.parent && obj.parent !== scene) obj = obj.parent;
-      const g = gunmen.find((gg) => gg.mesh === obj);
-      if (g) {
-        g.health -= 1;
-        if (g.health <= 0) {
-          g.alive = false;
-          g.mesh.rotation.x = -Math.PI / 2;
-          g.mesh.position.y = 0.3;
-          killed = true;
-        }
-      }
-    } else if (onHitWorld) {
-      onHitWorld(hits[0] ? hits[0].point : null);
-    }
-    if (ammo === 0) {
-      reloading = true;
-      reloadT = 1.6;
-    }
-    return { fired: true, killed, ammo };
-  }
-
-  function update(dt, playerPos, onPlayerHit) {
-    if (punchT > 0) punchT -= dt;
-    if (muzzleT > 0) {
-      muzzleT -= dt;
-      muzzle.material.opacity = Math.max(0, muzzleT / 0.08);
-    } else {
-      muzzle.material.opacity = 0;
-    }
-    if (reloading) {
-      reloadT -= dt;
-      if (reloadT <= 0) {
-        reloading = false;
-        ammo = CONFIG.pistolAmmo;
+    for (const cop of game.police.cops) {
+      if (cop.alive && hit(cop.pos)) {
+        game.effects.burst(cop.pos, 0xffe14d, 10);
+        cop.alive = false;
+        cop.mesh.rotation.x = -Math.PI / 2;
+        landed = true;
       }
     }
-    // gunmen shoot back (inaccurate, telegraphed)
-    for (const g of gunmen) {
-      if (!g.alive) continue;
-      const d = Math.hypot(g.pos.x - playerPos.x, g.pos.z - playerPos.z);
-      if (d < 26) {
-        g.mesh.lookAt(playerPos.x, 0, playerPos.z);
-        g.shootT -= dt;
-        if (g.shootT <= 0) {
-          g.shootT = 1.1 + Math.random() * 0.9;
-          if (Math.random() < 0.55 && onPlayerHit) onPlayerHit(8);
-        }
-      }
+    if (landed) {
+      game.police.addWanted(1, game.time);
+      game.effects.shake(0.25);
     }
   }
 
-  return {
-    gunmen, spawnGunman, clearGunmen, punch, shoot, update,
-    get ammo() { return ammo; },
-    get reloading() { return reloading; },
-    muzzle,
-  };
+  shoot(game) {
+    if (this.ammo <= 0) {
+      game.audio.dryFire();
+      this.reload();
+      return;
+    }
+    this.ammo -= 1;
+    this.shootTimer = 0.22;
+    game.audio.gunshot();
+    game.effects.muzzle(game.player);
+    game.effects.shake(0.12);
+    // raycast from the centre of the screen into the world
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    const targets = [];
+    for (const ped of game.peds.list) if (ped.alive) targets.push({ mesh: ped.mesh, ref: ped, kind: 'ped' });
+    for (const cop of game.police.cops) if (cop.alive) targets.push({ mesh: cop.mesh, ref: cop, kind: 'cop' });
+    for (const car of game.traffic.cars) targets.push({ mesh: car.mesh, ref: car, kind: 'car' });
+    const meshes = targets.map((t) => t.mesh);
+    const hits = this.raycaster.intersectObjects(meshes, true);
+    if (hits.length === 0) return;
+    const hit = hits[0];
+    let obj = hit.object;
+    while (obj.parent && obj.parent !== this.scene) obj = obj.parent;
+    const target = targets.find((t) => t.mesh === obj);
+    if (!target) return;
+    game.effects.burst(hit.point, 0xffe14d, 14);
+    if (target.kind === 'ped') {
+      target.ref.health -= CONFIG.combat.pistolDamage;
+      if (target.ref.health <= 0) target.ref.die();
+      else target.ref.fleeFrom(game.player.pos.x, game.player.pos.z);
+    } else if (target.kind === 'cop') {
+      target.ref.alive = false;
+      target.ref.mesh.rotation.x = -Math.PI / 2;
+    } else if (target.kind === 'car') {
+      target.ref.health = Math.max(0, target.ref.health - 12);
+      game.effects.burst(hit.point, 0x9aa0a8, 8);
+    }
+    if (target.kind !== 'car') game.police.addWanted(1, game.time);
+  }
+
+  // Damage the player (cop melee, car ram). Returns true when it kills.
+  hurtPlayer(game, amount) {
+    const p = game.player;
+    p.health = Math.max(0, p.health - amount);
+    game.effects.shake(0.3);
+    game.hud.flashDamage();
+    if (p.health <= 0) game.busted('You were taken down in the streets of Meridian Bay.');
+    return p.health <= 0;
+  }
 }

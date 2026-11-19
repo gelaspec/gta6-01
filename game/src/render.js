@@ -1,153 +1,123 @@
-// Meridian Bay — renderer, sky, lighting and the third-person camera.
-// Time-of-day presets: noon, golden (cover), night (neon), dawn.
+// Meridian Bay — renderer, camera rig and time of day. The camera follows
+// the player or the driven car from behind, with a mouse-drag orbit and a
+// near/far toggle; the sky, sun and fog shift per time of day so the golden
+// hour chase, the bright day, dusk and the neon night each read at once.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 
-const TOD = {
-  noon: {
-    skyTop: 0x4fa8e8, skyBottom: 0xcfeefb, fog: 0xbfd9e8, sunColor: 0xfff2d0,
-    sunPos: [120, 180, 60], hemiSky: 0xbfe3ff, hemiGround: 0x8a7a5c,
-    exposure: 1.15, sunIntensity: 2.2, hemiIntensity: 0.9, ambient: 0.35,
+const TIMES = {
+  day: {
+    sky: CONFIG.palette.skyDay, fog: 0x9fd8f2, sun: CONFIG.palette.sunDay,
+    sunIntensity: 1.25, hemiSky: 0xbfe8ff, hemiGround: 0x8a7a5a, hemiIntensity: 0.85,
+    sunPos: [120, 180, 60], ambient: 0.35,
   },
   golden: {
-    skyTop: 0x6a4fd8, skyBottom: 0xff9e3d, fog: 0xe89a5c, sunColor: 0xffc98a,
-    sunPos: [150, 42, -70], hemiSky: 0xffc98a, hemiGround: 0x6a5a44,
-    exposure: 1.18, sunIntensity: 2.4, hemiIntensity: 0.75, ambient: 0.3,
+    sky: CONFIG.palette.skyGolden, fog: 0xffc98a, sun: CONFIG.palette.sunGolden,
+    sunIntensity: 1.2, hemiSky: 0xffd9a0, hemiGround: 0x7a5a4a, hemiIntensity: 0.95,
+    sunPos: [-160, 55, 90], ambient: 0.32,
+  },
+  dusk: {
+    sky: CONFIG.palette.skyDusk, fog: 0xb99ae0, sun: 0xff7a5c,
+    sunIntensity: 0.9, hemiSky: 0x9a86d8, hemiGround: 0x4a3a5a, hemiIntensity: 0.65,
+    sunPos: [-140, 40, -80], ambient: 0.28,
   },
   night: {
-    skyTop: 0x0d1230, skyBottom: 0x2a2a55, fog: 0x1c2440, sunColor: 0x8aa8ff,
-    sunPos: [80, 120, -100], hemiSky: 0x33406e, hemiGround: 0x1a1a22,
-    exposure: 1.05, sunIntensity: 0.7, hemiIntensity: 0.45, ambient: 0.22,
-  },
-  dawn: {
-    skyTop: 0x5a7bd6, skyBottom: 0xffc4a3, fog: 0xe8b8a0, sunColor: 0xffd9a0,
-    sunPos: [160, 40, -60], hemiSky: 0xffc4a3, hemiGround: 0x7a6a55,
-    exposure: 1.15, sunIntensity: 1.9, hemiIntensity: 0.8, ambient: 0.32,
+    sky: CONFIG.palette.skyNight, fog: 0x16233f, sun: CONFIG.palette.sunNight,
+    sunIntensity: 0.5, hemiSky: 0x33456e, hemiGround: 0x1a2233, hemiIntensity: 0.5,
+    sunPos: [80, 140, -60], ambient: 0.22,
   },
 };
 
-function skyTexture(top, bottom) {
-  const c = document.createElement('canvas');
-  c.width = 4;
-  c.height = 256;
-  const g = c.getContext('2d');
-  const grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, `#${top.toString(16).padStart(6, '0')}`);
-  grad.addColorStop(0.55, `#${bottom.toString(16).padStart(6, '0')}`);
-  grad.addColorStop(1, `#${bottom.toString(16).padStart(6, '0')}`);
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 4, 256);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+export class Renderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(TIMES.day.sky);
+    this.scene.fog = new THREE.Fog(TIMES.day.fog, 120, 520);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
+    this.camera.position.set(0, 12, -18);
 
-export function createRender(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+    this.sun = new THREE.DirectionalLight(TIMES.day.sun, TIMES.day.sunIntensity);
+    this.sun.position.set(120, 180, 60);
+    this.scene.add(this.sun);
+    this.hemi = new THREE.HemisphereLight(TIMES.day.hemiSky, TIMES.day.hemiGround, TIMES.day.hemiIntensity);
+    this.scene.add(this.hemi);
+    this.ambient = new THREE.AmbientLight(0xffffff, TIMES.day.ambient);
+    this.scene.add(this.ambient);
 
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xbfd9e8, 120, 420);
+    // camera rig state
+    this.yaw = 0; // orbit around the target, added to the target heading
+    this.pitch = 0.32;
+    this.distance = 13;
+    this.far = false;
+    this.shake = 0;
+    this.target = new THREE.Vector3();
+    this.eye = new THREE.Vector3();
+    this.timeOfDay = 'day';
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+  }
 
-  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
-  camera.position.set(0, 30, 60);
+  resize() {
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
 
-  // sky dome (gradient) + sun disc + a few soft clouds
-  const skyMat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(700, 24, 16), skyMat);
-  scene.add(sky);
-  const sunMat = new THREE.MeshBasicMaterial({ color: CONFIG.palette.sun, fog: false });
-  const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(26, 24), sunMat);
-  scene.add(sunDisc);
-  const clouds = new THREE.Group();
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, fog: false });
-  for (let i = 0; i < 14; i++) {
-    const cl = new THREE.Group();
-    const puffs = 3 + (i % 3);
-    for (let k = 0; k < puffs; k++) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(9 + k * 3, 8, 6), cloudMat);
-      s.position.set(k * 9 - puffs * 4, (k % 2) * 2, 0);
-      s.scale.y = 0.45;
-      cl.add(s);
+  setTimeOfDay(name) {
+    const t = TIMES[name] || TIMES.day;
+    this.timeOfDay = name;
+    this.scene.background.setHex(t.sky);
+    this.scene.fog.color.setHex(t.fog);
+    this.sun.color.setHex(t.sun);
+    this.sun.intensity = t.sunIntensity;
+    this.sun.position.set(t.sunPos[0], t.sunPos[1], t.sunPos[2]);
+    this.hemi.color.setHex(t.hemiSky);
+    this.hemi.groundColor.setHex(t.hemiGround);
+    this.hemi.intensity = t.hemiIntensity;
+    this.ambient.intensity = t.ambient;
+  }
+
+  addShake(amount) {
+    this.shake = Math.min(1.2, this.shake + amount);
+  }
+
+  // Follow `target` (a Vector3) facing `heading`; dt smooths the chase.
+  follow(target, heading, dt, speed) {
+    const dist = this.far ? 19 : 13;
+    const height = this.far ? 7.5 : 5.2;
+    const yaw = heading + Math.PI + this.yaw;
+    const desired = new THREE.Vector3(
+      target.x + Math.sin(yaw) * dist,
+      target.y + height + this.pitch * 8,
+      target.z + Math.cos(yaw) * dist,
+    );
+    // faster catch-up when the target moves fast, gentle when it strolls
+    const k = 1 - Math.exp(-dt * (speed > 20 ? 7 : 4.5));
+    this.eye.lerp(desired, k);
+    if (this.shake > 0.001) {
+      this.eye.x += (Math.random() - 0.5) * this.shake;
+      this.eye.y += (Math.random() - 0.5) * this.shake * 0.6;
+      this.shake *= Math.exp(-dt * 6);
     }
-    cl.position.set(-320 + (i * 53) % 640, 95 + (i * 17) % 45, -260 + (i * 91) % 520);
-    clouds.add(cl);
-  }
-  scene.add(clouds);
-
-  const sun = new THREE.DirectionalLight(0xfff2d0, 2.2);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -160;
-  sun.shadow.camera.right = 160;
-  sun.shadow.camera.top = 160;
-  sun.shadow.camera.bottom = -160;
-  sun.shadow.camera.far = 600;
-  sun.shadow.bias = -0.0004;
-  scene.add(sun);
-  scene.add(sun.target);
-  const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x8a7a5c, 0.9);
-  scene.add(hemi);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
-  scene.add(ambient);
-
-  let tod = 'noon';
-  function setTimeOfDay(name) {
-    const p = TOD[name] || TOD.noon;
-    tod = name;
-    skyMat.map = skyTexture(p.skyTop, p.skyBottom);
-    skyMat.needsUpdate = true;
-    scene.fog.color.setHex(p.fog);
-    sun.color.setHex(p.sunColor);
-    sun.position.set(p.sunPos[0], p.sunPos[1], p.sunPos[2]);
-    sun.intensity = p.sunIntensity;
-    hemi.color.setHex(p.hemiSky);
-    hemi.groundColor.setHex(p.hemiGround);
-    hemi.intensity = p.hemiIntensity;
-    ambient.intensity = p.ambient;
-    renderer.toneMappingExposure = p.exposure;
-    sunDisc.position.set(p.sunPos[0] * 3.4, Math.max(p.sunPos[1] * 3.4, 60), p.sunPos[2] * 3.4);
-    sunDisc.lookAt(camera.position);
-    clouds.visible = name !== 'night';
-  }
-  setTimeOfDay('noon');
-
-  // third-person follow camera with smoothing; orbitYaw is the player orbit
-  const camState = { yaw: 0, pitch: 0.32, dist: 9.5, height: 3.4, shake: 0 };
-  function updateCamera(focus, dt, opts = {}) {
-    const dist = opts.dist !== undefined ? opts.dist : camState.dist;
-    const height = opts.height !== undefined ? opts.height : camState.height;
-    const yaw = opts.yaw !== undefined ? opts.yaw : camState.yaw;
-    const pitch = opts.pitch !== undefined ? opts.pitch : camState.pitch;
-    const tx = focus.x - Math.sin(yaw) * Math.cos(pitch) * dist;
-    const tz = focus.z - Math.cos(yaw) * Math.cos(pitch) * dist;
-    const ty = focus.y + height + Math.sin(pitch) * dist * 0.55;
-    const k = 1 - Math.pow(0.0001, dt);
-    camera.position.x += (tx - camera.position.x) * k;
-    camera.position.y += (ty - camera.position.y) * k;
-    camera.position.z += (tz - camera.position.z) * k;
-    if (camState.shake > 0.001) {
-      camera.position.x += (Math.random() - 0.5) * camState.shake;
-      camera.position.y += (Math.random() - 0.5) * camState.shake;
-      camState.shake *= Math.pow(0.02, dt);
-    }
-    camera.lookAt(focus.x, focus.y + 1.6, focus.z);
-    sunDisc.lookAt(camera.position);
-    sun.target.position.set(focus.x, 0, focus.z);
-    sun.position.set(focus.x + TOD[tod].sunPos[0], TOD[tod].sunPos[1], focus.z + TOD[tod].sunPos[2]);
+    this.camera.position.copy(this.eye);
+    this.target.lerp(target, 1 - Math.exp(-dt * 8));
+    this.camera.lookAt(this.target.x, this.target.y + 1.6, this.target.z);
   }
 
-  function resize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  // A fixed cinematic camera for the shot states (position + lookAt).
+  place(position, lookAt) {
+    this.eye.set(position[0], position[1], position[2]);
+    this.target.set(lookAt[0], lookAt[1], lookAt[2]);
+    this.camera.position.copy(this.eye);
+    this.camera.lookAt(this.target);
   }
-  window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, setTimeOfDay, updateCamera, camState, get tod() { return tod; } };
+  render() {
+    this.renderer.render(this.scene, this.camera);
+  }
 }

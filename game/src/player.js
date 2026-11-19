@@ -1,122 +1,129 @@
-// Meridian Bay — Cassian Rowe on foot. Capsule built from boxes (vest, belt,
-// shoes), third-person movement relative to the camera, jump + gravity.
+// Meridian Bay — Cassian Rowe on foot: WASD movement relative to the
+// camera, run, jump, a low-poly walker whose legs swing, and entering cars.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 
-function buildBody() {
-  const g = new THREE.Group();
-  const skin = new THREE.MeshLambertMaterial({ color: 0xd9a066 });
-  const vest = new THREE.MeshLambertMaterial({ color: 0x2e6f5e }); // teal vest
-  const shirt = new THREE.MeshLambertMaterial({ color: 0xf2ede2 });
-  const jeans = new THREE.MeshLambertMaterial({ color: 0x2e4a6b });
-  const shoes = new THREE.MeshLambertMaterial({ color: 0x1c1c22 });
-  const hair = new THREE.MeshLambertMaterial({ color: 0x241a12 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), vest);
-  torso.position.y = 1.18;
-  torso.castShadow = true;
-  g.add(torso);
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.36), shirt);
-  chest.position.y = 1.22;
-  g.add(chest);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.4, 0.34), skin);
-  head.position.y = 1.78;
-  head.castShadow = true;
-  g.add(head);
-  const hairTop = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.14, 0.36), hair);
-  hairTop.position.y = 2.0;
-  g.add(hairTop);
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.32), new THREE.MeshLambertMaterial({ color: 0x6a4a26 }));
-  belt.position.y = 0.82;
-  g.add(belt);
-  for (const sx of [-0.16, 0.16]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.78, 0.26), jeans);
-    leg.position.set(sx, 0.4, 0);
-    leg.castShadow = true;
-    g.add(leg);
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.44), shoes);
-    shoe.position.set(sx, 0.06, 0.06);
-    g.add(shoe);
-  }
-  for (const sx of [-0.38, 0.38]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.66, 0.22), shirt);
-    arm.position.set(sx, 1.16, 0);
-    g.add(arm);
-  }
-  return g;
+function limb(w, h, d, color, x, y, z) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshLambertMaterial({ color }),
+  );
+  m.position.set(x, y, z);
+  return m;
 }
 
-export function createPlayer(scene, city) {
-  const mesh = buildBody();
-  scene.add(mesh);
-  const pos = new THREE.Vector3(0, 0, 30);
-  let heading = 0; // radians, 0 = facing -z
-  let vy = 0;
-  let onGround = true;
-  let walkPhase = 0;
-  const legs = [mesh.children[6], mesh.children[8]];
-  const arms = [mesh.children[10], mesh.children[11]];
+export class Player {
+  constructor(scene) {
+    this.scene = scene;
+    this.pos = new THREE.Vector3(-40, 0, 30);
+    this.heading = 0; // radians, 0 = facing +z... forward is -z in three
+    this.speed = 0;
+    this.vy = 0;
+    this.grounded = true;
+    this.health = CONFIG.player.health;
+    this.onFoot = true;
+    this.car = null; // the car currently driven, if any
+    this.walkPhase = 0;
+    this.mesh = this.buildMesh();
+    scene.add(this.mesh);
+  }
 
-  function update(dt, input, camYaw) {
-    const ax = input.axis();
+  buildMesh() {
+    const g = new THREE.Group();
+    g.name = 'cassian';
+    // jacket, jeans, skin head, cap — bright so he reads at a distance
+    this.torso = limb(0.9, 1.0, 0.5, 0x1e6fd9, 0, 1.35, 0);
+    this.head = limb(0.5, 0.5, 0.5, 0xe8b98a, 0, 2.15, 0);
+    this.cap = limb(0.56, 0.16, 0.56, 0xff2e88, 0, 2.42, 0);
+    this.legL = limb(0.34, 0.85, 0.4, 0x2c3440, -0.24, 0.45, 0);
+    this.legR = limb(0.34, 0.85, 0.4, 0x2c3440, 0.24, 0.45, 0);
+    this.armL = limb(0.28, 0.85, 0.34, 0x1e6fd9, -0.6, 1.35, 0);
+    this.armR = limb(0.28, 0.85, 0.34, 0x1e6fd9, 0.6, 1.35, 0);
+    g.add(this.torso, this.head, this.cap, this.legL, this.legR, this.armL, this.armR);
+    return g;
+  }
+
+  reset(x, z, heading = 0) {
+    this.pos.set(x, 0, z);
+    this.heading = heading;
+    this.speed = 0;
+    this.vy = 0;
+    this.health = CONFIG.player.health;
+    this.onFoot = true;
+    this.car = null;
+    this.mesh.visible = true;
+    this.syncMesh();
+  }
+
+  syncMesh() {
+    this.mesh.position.copy(this.pos);
+    this.mesh.rotation.y = this.heading;
+    const swing = Math.sin(this.walkPhase) * Math.min(1, this.speed / 5) * 0.6;
+    this.legL.rotation.x = swing;
+    this.legR.rotation.x = -swing;
+    this.armL.rotation.x = -swing * 0.8;
+    this.armR.rotation.x = swing * 0.8;
+  }
+
+  // Move on foot. camYaw is the camera's yaw so WASD stays camera-relative.
+  update(dt, input, city, camYaw) {
+    if (!this.onFoot) return;
+    const axes = input.moveAxes();
     const running = input.down('ShiftLeft') || input.down('ShiftRight');
-    const speed = running ? CONFIG.runSpeed : CONFIG.walkSpeed;
-    // movement relative to camera yaw
-    const sin = Math.sin(camYaw);
-    const cos = Math.cos(camYaw);
-    const mx = -sin * ax.y + cos * ax.x;
-    const mz = -cos * ax.y - sin * ax.x;
-    const moving = Math.abs(ax.x) + Math.abs(ax.y) > 0;
-    if (moving) {
-      const len = Math.hypot(mx, mz) || 1;
-      const nx = (mx / len) * speed * dt;
-      const nz = (mz / len) * speed * dt;
-      const res = city.resolveCollision(pos.x + nx, pos.z + nz, 0.6);
-      pos.x = res.x;
-      pos.z = res.z;
+    const target = running ? CONFIG.player.runSpeed : CONFIG.player.walkSpeed;
+    const mag = Math.hypot(axes.x, axes.y);
+    let want = 0;
+    if (mag > 0.01) {
+      const ax = axes.x / mag;
+      const ay = axes.y / mag;
+      // camera-relative: forward is away from the camera
+      const fx = Math.sin(camYaw);
+      const fz = Math.cos(camYaw);
+      const rx = Math.cos(camYaw);
+      const rz = -Math.sin(camYaw);
+      const mx = fx * ay + rx * ax;
+      const mz = fz * ay + rz * ax;
       const targetHeading = Math.atan2(mx, mz);
-      let dh = targetHeading - heading;
+      let dh = targetHeading - this.heading;
       while (dh > Math.PI) dh -= Math.PI * 2;
       while (dh < -Math.PI) dh += Math.PI * 2;
-      heading += dh * Math.min(1, dt * 12);
-      walkPhase += dt * (running ? 11 : 7);
-      const swing = Math.sin(walkPhase) * 0.55;
-      legs[0].rotation.x = swing;
-      legs[1].rotation.x = -swing;
-      arms[0].rotation.x = -swing * 0.7;
-      arms[1].rotation.x = swing * 0.7;
-    } else {
-      legs[0].rotation.x *= 0.8;
-      legs[1].rotation.x *= 0.8;
-      arms[0].rotation.x *= 0.8;
-      arms[1].rotation.x *= 0.8;
+      this.heading += dh * Math.min(1, dt * 12);
+      want = target;
     }
+    this.speed += (want - this.speed) * Math.min(1, dt * CONFIG.player.accel / 10);
+    const nx = this.pos.x + Math.sin(this.heading) * this.speed * dt;
+    const nz = this.pos.z + Math.cos(this.heading) * this.speed * dt;
+    const solved = city.resolveCircle(nx, nz, CONFIG.player.radius);
+    this.pos.x = Math.max(-205, Math.min(285, solved.x));
+    this.pos.z = Math.max(-205, Math.min(205, solved.z));
     // jump + gravity
-    if (input.hit('Space') && onGround) {
-      vy = CONFIG.jumpSpeed;
-      onGround = false;
+    if (this.grounded && input.pressed('Space')) {
+      this.vy = CONFIG.player.jumpSpeed;
+      this.grounded = false;
     }
-    vy -= CONFIG.gravity * dt;
-    pos.y += vy * dt;
-    if (pos.y <= 0) {
-      pos.y = 0;
-      vy = 0;
-      onGround = true;
+    if (!this.grounded) {
+      this.vy -= CONFIG.player.gravity * dt;
+      this.pos.y += this.vy * dt;
+      if (this.pos.y <= 0) {
+        this.pos.y = 0;
+        this.vy = 0;
+        this.grounded = true;
+      }
     }
-    // clamp to the playable area (city + beach, not into the sea)
-    pos.x = Math.max(-CONFIG.cityHalf - 6, Math.min(CONFIG.beachX + 52, pos.x));
-    pos.z = Math.max(-CONFIG.cityHalf - 6, Math.min(CONFIG.cityHalf + 6, pos.z));
-    mesh.position.copy(pos);
-    mesh.rotation.y = heading;
-    return { moving, running };
+    this.walkPhase += dt * this.speed * 1.6;
+    this.syncMesh();
   }
 
-  function setPos(x, z, h = 0) {
-    pos.set(x, 0, z);
-    heading = h;
-    mesh.position.copy(pos);
-    mesh.rotation.y = heading;
+  // The point the camera follows: the car when driving, the player on foot.
+  focusPoint() {
+    return this.car ? this.car.pos : this.pos;
   }
 
-  return { mesh, pos, get heading() { return heading; }, update, setPos };
+  focusHeading() {
+    return this.car ? this.car.heading : this.heading;
+  }
+
+  focusSpeed() {
+    return this.car ? Math.abs(this.car.speed) : this.speed;
+  }
 }
