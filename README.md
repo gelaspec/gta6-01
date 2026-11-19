@@ -1,8 +1,10 @@
 # MERIDIAN BAY
 
-[![make.fun](https://make.fun/api/competitions/gta6-01/badge?status=active)](https://make.fun/bounty/gta6-01)
-[![make.fun](https://make.fun/api/competitions/gta6-01/badge?score=dev)](https://make.fun/bounty/gta6-01)
-[![make.fun](https://make.fun/api/competitions/gta6-01/badge?score=final)](https://make.fun/bounty/gta6-01)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/gelaspec/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/gelaspec/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Bounty: [gta6-01 on make.fun](https://make.fun/bounty/gta6-01)
 
 A Grand Theft Auto VI style open-world crime game, built for the make.fun
 gta6-01 bounty. Three.js, static files only — no build step, no network.
