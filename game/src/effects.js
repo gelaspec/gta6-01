@@ -1,111 +1,97 @@
-// Meridian Bay — particles and screen shake: muzzle flashes, sparks,
-// tire smoke, pickup glints and the golden-hour dust that hangs over the
-// coast road. One pooled Points cloud, no per-frame allocation.
+// Effects: a small pooled particle system (sparks, smoke, muzzle flash)
+// plus the camera shake value the render loop reads. Everything is reused
+// — nothing is allocated per frame while playing.
+
 import * as THREE from 'three';
 
-const MAX = 420;
-
-export class Effects {
-  constructor(scene, renderer) {
-    this.scene = scene;
-    this.renderer = renderer;
-    this.positions = new Float32Array(MAX * 3);
-    this.colors = new Float32Array(MAX * 3);
-    this.vel = new Float32Array(MAX * 3);
-    this.life = new Float32Array(MAX);
-    this.maxLife = new Float32Array(MAX);
-    this.cursor = 0;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.55, vertexColors: true, transparent: true, opacity: 0.95,
-      depthWrite: false, sizeAttenuation: true,
-    });
-    this.points = new THREE.Points(geo, mat);
-    this.points.frustumCulled = false;
-    this.points.name = 'particles';
-    scene.add(this.points);
-    // a reusable flash sprite for muzzle + pickups
-    const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
-    const flashMat = new THREE.MeshBasicMaterial({
-      color: 0xfff6c9, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-    });
-    this.flash = new THREE.Mesh(flashGeo, flashMat);
-    this.flash.visible = false;
-    scene.add(this.flash);
-    this.flashTime = 0;
+export function createEffects(THREE, scene) {
+  const COUNT = 160;
+  const geo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const pool = [];
+  for (let i = 0; i < COUNT; i++) {
+    const m = new THREE.Mesh(geo, mat.clone());
+    m.visible = false;
+    scene.add(m);
+    pool.push({ mesh: m, vel: new THREE.Vector3(), life: 0, max: 1, grav: 0 });
   }
+  let cursor = 0;
+  let shakeAmt = 0;
 
-  spawn(x, y, z, color, speed, life) {
-    const i = this.cursor;
-    this.cursor = (this.cursor + 1) % MAX;
-    this.positions[i * 3] = x;
-    this.positions[i * 3 + 1] = y;
-    this.positions[i * 3 + 2] = z;
-    const c = new THREE.Color(color);
-    this.colors[i * 3] = c.r;
-    this.colors[i * 3 + 1] = c.g;
-    this.colors[i * 3 + 2] = c.b;
-    const a = Math.random() * Math.PI * 2;
-    const up = Math.random() * 2 - 0.4;
-    this.vel[i * 3] = Math.cos(a) * speed;
-    this.vel[i * 3 + 1] = up * speed;
-    this.vel[i * 3 + 2] = Math.sin(a) * speed;
-    this.life[i] = life;
-    this.maxLife[i] = life;
-  }
+  const flashMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 1.6),
+    new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  flashMesh.visible = false;
+  scene.add(flashMesh);
+  let flashT = 0;
 
-  burst(pos, color, count, speed = 6, life = 0.6) {
-    for (let i = 0; i < count; i++) {
-      this.spawn(pos.x, pos.y + 1, pos.z, color, speed * (0.5 + Math.random()), life * (0.6 + Math.random() * 0.8));
+  function spawn(pos, color, n, speed, life, grav, up) {
+    for (let k = 0; k < n; k++) {
+      const p = pool[cursor];
+      cursor = (cursor + 1) % COUNT;
+      p.mesh.visible = true;
+      p.mesh.position.copy(pos);
+      p.mesh.material.color.setHex(color);
+      p.mesh.scale.setScalar(0.6 + Math.random() * 0.9);
+      const a = Math.random() * Math.PI * 2;
+      const b = Math.random() * Math.PI - Math.PI / 2;
+      p.vel.set(Math.cos(a) * Math.cos(b), Math.abs(Math.sin(b)) * 0.8 + (up || 0.3), Math.sin(a) * Math.cos(b)).multiplyScalar(speed * (0.5 + Math.random()));
+      p.life = life * (0.6 + Math.random() * 0.7);
+      p.max = p.life;
+      p.grav = grav;
     }
   }
 
-  smoke(pos, count = 3) {
-    for (let i = 0; i < count; i++) {
-      this.spawn(pos.x, pos.y + 0.3, pos.z, 0x8a8f96, 1.6, 1.1);
-    }
+  function burst(pos, color, n = 12, speed = 8) {
+    spawn(pos, color, n, speed, 0.55, 14, 0.5);
   }
 
-  muzzle(player) {
-    const p = player.focusPoint();
-    const fx = Math.sin(player.focusHeading());
-    const fz = Math.cos(player.focusHeading());
-    this.flash.position.set(p.x + fx * 1.6, p.y + 1.5, p.z + fz * 1.6);
-    this.flash.visible = true;
-    this.flashTime = 0.07;
-    this.burst(new THREE.Vector3(p.x + fx * 1.6, p.y + 1.4, p.z + fz * 1.6), 0xffe14d, 6, 8, 0.25);
+  function smoke(pos, n = 6) {
+    spawn(pos, 0x9aa0aa, n, 2.2, 1.1, -1.5, 0.9);
   }
 
-  shake(amount) {
-    this.renderer.addShake(amount);
+  function flash(pos) {
+    flashMesh.position.copy(pos);
+    flashMesh.visible = true;
+    flashMesh.material.opacity = 0.95;
+    flashT = 0.07;
   }
 
-  update(dt) {
-    for (let i = 0; i < MAX; i++) {
-      if (this.life[i] <= 0) {
-        this.positions[i * 3 + 1] = -100; // park dead particles underground
+  function shake(amt) {
+    shakeAmt = Math.min(1.2, shakeAmt + amt);
+  }
+
+  function update(dt) {
+    for (const p of pool) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.mesh.visible = false;
         continue;
       }
-      this.life[i] -= dt;
-      this.positions[i * 3] += this.vel[i * 3] * dt;
-      this.positions[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
-      this.positions[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
-      this.vel[i * 3 + 1] -= 5 * dt;
-      if (this.positions[i * 3 + 1] < 0.05) {
-        this.positions[i * 3 + 1] = 0.05;
-        this.vel[i * 3 + 1] = 0;
-      }
+      p.vel.y -= p.grav * dt;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      const s = p.mesh.scale.x * (p.life / p.max);
+      p.mesh.scale.setScalar(Math.max(0.05, s));
+      p.mesh.rotation.x += dt * 6;
+      p.mesh.rotation.y += dt * 8;
     }
-    this.points.geometry.attributes.position.needsUpdate = true;
-    this.points.geometry.attributes.color.needsUpdate = true;
-    if (this.flashTime > 0) {
-      this.flashTime -= dt;
-      this.flash.material.opacity = Math.max(0, this.flashTime / 0.07);
-      this.flash.lookAt(this.renderer.camera.position);
-      if (this.flashTime <= 0) this.flash.visible = false;
+    if (flashT > 0) {
+      flashT -= dt;
+      flashMesh.material.opacity = Math.max(0, flashT / 0.07) * 0.95;
+      if (flashT <= 0) flashMesh.visible = false;
     }
+    shakeAmt = Math.max(0, shakeAmt - dt * 2.2);
   }
+
+  // Called after the camera is placed each frame, so the shake lands last.
+  function applyShake(camera) {
+    if (!camera || shakeAmt <= 0.005) return;
+    camera.position.x += (Math.random() - 0.5) * shakeAmt * 0.35;
+    camera.position.y += (Math.random() - 0.5) * shakeAmt * 0.25;
+    flashMesh.lookAt(camera.position);
+  }
+
+  return { burst, smoke, flash, shake, update, applyShake, get shakeAmt() { return shakeAmt; } };
 }

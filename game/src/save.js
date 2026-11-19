@@ -1,48 +1,35 @@
-// Meridian Bay — save: one localStorage slot for money, mission progress,
-// packages and reputation. Everything is guarded: a missing or blocked
-// store simply means a fresh run.
+// Save: money, missions finished, hidden packages and the best REP,
+// persisted in localStorage. Every call is guarded — file:// and private
+// modes can refuse storage, and the game must keep working anyway.
 
-const KEY = 'meridian-bay-save-v7';
+const KEY = 'meridian-bay-save-v1';
 
-export class Save {
-  static load() {
-    try {
-      const raw = window.localStorage.getItem(KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      if (typeof data !== 'object' || data === null) return null;
-      return {
-        money: Number(data.money) || 0,
-        mission: Number(data.mission) || 0,
-        packages: Number(data.packages) || 0,
-        rep: Number(data.rep) || 0,
-        best: Number(data.best) || 0,
-      };
-    } catch {
-      return null;
-    }
+export function defaultSave() {
+  return { money: 250, missionsDone: [], packages: [], rep: 0, day: 1, best: 0 };
+}
+
+export function loadSave() {
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (!raw) return defaultSave();
+    const data = JSON.parse(raw);
+    return { ...defaultSave(), ...data };
+  } catch {
+    return defaultSave();
   }
+}
 
-  static store(state) {
-    try {
-      const data = {
-        money: Math.round(state.money),
-        mission: state.mission,
-        packages: state.packages,
-        rep: Math.round(state.rep),
-        best: Math.round(state.best),
-        savedAt: new Date().toISOString(),
-      };
-      window.localStorage.setItem(KEY, JSON.stringify(data));
-      return true;
-    } catch {
-      return false;
-    }
+export function saveSave(data) {
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  static clear() {
-    try {
-      window.localStorage.removeItem(KEY);
-    } catch { /* no store, nothing to clear */ }
-  }
+export function clearSave() {
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch { /* ignore */ }
 }

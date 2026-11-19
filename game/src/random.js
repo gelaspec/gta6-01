@@ -1,5 +1,6 @@
-// Meridian Bay — a small seedable RNG (mulberry32) plus the helpers the
-// city, traffic and shots use. One seed drives one deterministic world.
+// Seedable RNG (mulberry32) plus small helpers. Every procedural choice in
+// the city, traffic and pedestrians goes through a seeded generator so a
+// given seed always builds the same Meridian Bay.
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -12,61 +13,52 @@ export function mulberry32(seed) {
   };
 }
 
-// A stable 32-bit hash of a short string, for turning names into seeds.
-export function hashString(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
+export function rngRange(rng, lo, hi) {
+  return lo + (hi - lo) * rng();
 }
 
-export class RNG {
-  constructor(seed = 1) {
-    this.seed = seed >>> 0;
-    this.next = mulberry32(this.seed);
-  }
+export function rngInt(rng, lo, hi) {
+  return Math.floor(rngRange(rng, lo, hi + 1));
+}
 
-  // Float in [0, 1).
-  float() {
-    return this.next();
-  }
+export function rngPick(rng, list) {
+  return list[Math.floor(rng() * list.length)];
+}
 
-  // Float in [min, max).
-  range(min, max) {
-    return min + (max - min) * this.next();
-  }
+export function rngChance(rng, p) {
+  return rng() < p;
+}
 
-  // Integer in [min, max] inclusive.
-  int(min, max) {
-    return Math.floor(this.range(min, max + 1));
+// Deterministic shuffle (Fisher-Yates) that returns a new array.
+export function rngShuffle(rng, list) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
   }
+  return out;
+}
 
-  // True with probability p.
-  chance(p) {
-    return this.next() < p;
-  }
+export function clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v;
+}
 
-  // One element of an array.
-  pick(arr) {
-    return arr[Math.floor(this.next() * arr.length)];
-  }
+export function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
 
-  // A shuffled copy of an array (Fisher-Yates).
-  shuffle(arr) {
-    const out = arr.slice();
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(this.next() * (i + 1));
-      const tmp = out[i];
-      out[i] = out[j];
-      out[j] = tmp;
-    }
-    return out;
-  }
+// Shortest signed angle difference, in radians.
+export function angleDelta(a, b) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
 
-  // A random angle in radians.
-  angle() {
-    return this.next() * Math.PI * 2;
-  }
+export function dist2d(ax, az, bx, bz) {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return Math.sqrt(dx * dx + dz * dz);
 }

@@ -1,30 +1,21 @@
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/gelaspec/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/gelaspec/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
 # Meridian Bay — Open-World Crime in a Sun-Soaked Port City
 
-**[Play the bounty on make.fun](https://make.fun/bounty/gta6-01)** ·
-**[Repository](https://github.com/gelaspec/gta6-01)**
-
-You are Cassian Rowe, getaway driver, back in Meridian Bay with nothing but a
-bus ticket. Fixer Inez Kade has six jobs for you — ending with the Meridian
-Bank vault at golden hour. Steal cars, outrun the MBPD, collect the hidden
-packages, and make the Bay yours.
+You are Cassian Rowe, getaway driver, back in Meridian Bay with nothing but a bus ticket. Fixer Inez Kade has six jobs for you — ending with the Meridian Bank vault at golden hour. Steal cars, outrun the MBPD, collect the hidden packages, and make the Bay yours.
 
 ## The game
 
-- **A complete open world:** a 7×7 coastal city with five districts (Old Port,
-  Marina, Downtown, Calle Verde, The Palms), a beach, the sea and a pier.
-- **On foot and by car:** walk, run, jump, steal any car, drive with arcade
-  handling, handbrake turns, traffic AI and fleeing pedestrians.
-- **Wanted 0–5 stars:** the MBPD answers with patrol cars, foot cops and —
-  from 3 stars — a helicopter with a spotlight. Lose the tail to cool off.
-- **Six story missions:** First Wheels, Courier Run, The Pickup, Heat,
-  Pier Heist and The Meridian Job, with a fixer who talks you through them.
+- **A complete open world:** a 7×7 coastal city with five districts (Old Port, Marina, Downtown, Calle Verde, The Palms), a beach, the sea and a pier.
+- **On foot and by car:** walk, run, jump, steal any car, drive with arcade handling, handbrake turns, traffic AI and fleeing pedestrians.
+- **Wanted 0–5 stars:** the MBPD answers with patrol cars, foot cops and — from 3 stars — a helicopter with a spotlight. Lose the tail to cool off.
+- **Six story missions:** First Wheels, Courier Run, The Pickup, Heat, Pier Heist and The Meridian Job, with a fixer who talks you through them.
 - **Side work:** 10 hidden packages and taxi fares for extra cash.
 - **Combat:** fists and a pistol, with a wanted level that answers back.
-- **HUD:** money, day and time, wanted stars, health, speed, car condition,
-  radio, weapon slots, REP bar, mission panel, police response panel with
-  named units and distances, and a live circular minimap.
-- **Sound:** synthesized engine, siren, gunshots and a synthwave loop —
-  no audio files, no network.
+- **HUD:** money, day and time, wanted stars, health, speed, car condition, radio, weapon slots, REP bar, mission panel, police response panel with named units and distances, and a live circular minimap.
+- **Sound:** synthesized engine, siren, gunshots and a synthwave loop — no audio files, no network.
 - **Save:** progress, money and packages persist in localStorage.
 
 ## Controls
@@ -89,9 +80,7 @@ Every file has one clear job:
 
 ## Originality
 
-Meridian Bay, Cassian Rowe, Inez Kade, the MBPD and every line of this game
-are original, built for this bounty. No Rockstar Games material is used.
-Three.js is vendored under `game/vendor/` and is never shown as our source.
+Meridian Bay, Cassian Rowe, Inez Kade, the MBPD and every line of this game are original, built for this bounty. No Rockstar Games material is used. Three.js is vendored under `game/vendor/` and is never shown as our source.
 
 ## License
 
